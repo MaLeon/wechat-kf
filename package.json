@@ -1,0 +1,94 @@
+{
+  "name": "@pawastation/wechat-kf",
+  "version": "0.3.2",
+  "description": "OpenClaw channel plugin for WeChat Customer Service (企业微信客服) — enables AI-powered customer service bots via WeCom KF API",
+  "type": "module",
+  "license": "MIT",
+  "author": "pawaca",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MaLeon/wechat-kf.git"
+  },
+  "homepage": "https://github.com/MaLeon/wechat-kf#readme",
+  "bugs": {
+    "url": "https://github.com/MaLeon/wechat-kf/issues"
+  },
+  "keywords": [
+    "openclaw",
+    "wechat",
+    "wecom",
+    "customer-service",
+    "chatbot",
+    "ai-assistant"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./crypto": {
+      "types": "./dist/src/crypto.d.ts",
+      "import": "./dist/src/crypto.js"
+    },
+    "./api": {
+      "types": "./dist/src/api.d.ts",
+      "import": "./dist/src/api.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "openclaw.plugin.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "biome check src/ index.ts",
+    "lint:fix": "biome check --write src/ index.ts",
+    "format": "biome format --write src/ index.ts",
+    "check": "biome check src/ index.ts",
+    "prepublishOnly": "pnpm run build && pnpm run typecheck && pnpm test && pnpm run lint"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "packageManager": "pnpm@10.6.3",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.4",
+    "@types/node": "^25.3.0",
+    "openclaw": "^2026.3.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ],
+    "channel": {
+      "id": "wechat-kf",
+      "label": "WeChat KF",
+      "selectionLabel": "WeChat Customer Service (微信客服)",
+      "docsPath": "/channels/wechat-kf",
+      "docsLabel": "wechat-kf",
+      "blurb": "企业微信客服 API channel for WeChat users.",
+      "aliases": [
+        "wxkf"
+      ],
+      "order": 80
+    },
+    "install": {
+      "npmSpec": "@pawastation/wechat-kf",
+      "localPath": "extensions/wechat-kf",
+      "defaultChoice": "local"
+    }
+  }
+}

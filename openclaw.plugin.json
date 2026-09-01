@@ -1,0 +1,31 @@
+{
+  "id": "wechat-kf",
+  "name": "WeChat Customer Service",
+  "description": "OpenClaw channel plugin for WeChat Customer Service (企业微信客服) via WeCom KF API",
+  "version": "0.3.2",
+  "channels": ["wechat-kf"],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "enabled": { "type": "boolean" },
+      "corpId": { "type": "string", "description": "WeCom Corp ID (企业ID)" },
+      "appSecret": { "type": "string", "description": "Self-built app secret (应用密钥)" },
+      "token": { "type": "string", "description": "Webhook callback token" },
+      "encodingAESKey": { "type": "string", "description": "43-character base64 AES key", "minLength": 43, "maxLength": 43 },
+      "webhookPath": { "type": "string", "default": "/wechat-kf" },
+      "dmPolicy": { "type": "string", "enum": ["open", "pairing", "allowlist", "disabled"], "default": "open" },
+      "allowFrom": { "type": "array", "items": { "type": "string" } },
+      "debounceMs": { "type": "number", "description": "Inbound message debounce window in milliseconds (0 = disabled)", "minimum": 0, "maximum": 10000 }
+    },
+    "uiHints": {
+      "corpId": { "label": "Corp ID", "placeholder": "ww0123456789abcdef" },
+      "appSecret": { "label": "App Secret", "placeholder": "Your WeCom app secret", "sensitive": true },
+      "token": { "label": "Callback Token", "placeholder": "Webhook verification token", "sensitive": true },
+      "encodingAESKey": { "label": "Encoding AES Key", "placeholder": "43-character base64 key", "sensitive": true },
+      "webhookPath": { "label": "Webhook Path", "placeholder": "/wechat-kf" },
+      "dmPolicy": { "label": "DM Policy", "placeholder": "open" },
+      "allowFrom": { "label": "Allowlist", "placeholder": "List of allowed external user IDs" },
+      "debounceMs": { "label": "Debounce (ms)", "placeholder": "2000" }
+    }
+  }
+}
