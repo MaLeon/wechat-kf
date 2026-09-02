@@ -13,6 +13,7 @@ import { getChannelConfig, registerKfId, resolveAccount } from "./accounts.js";
 import { downloadMedia, sendTextMessage, syncMessages } from "./api.js";
 import { CHANNEL_ID, cursorFileName, formatError, logTag, MAX_MESSAGE_AGE_S } from "./constants.js";
 import { atomicWriteFile } from "./fs-utils.js";
+import { claimMessage, completeMessages, pendingMessages, releaseMessage, resetMessageLedgers, } from "./message-ledger.js";
 import { setPairingKfId } from "./monitor.js";
 import { createReplyDispatcher } from "./reply-dispatcher.js";
 import { getRuntime } from "./runtime.js";
@@ -76,9 +77,11 @@ function getOrCreateDebouncer(ctx) {
                 return;
             if (items.length === 1) {
                 await dispatchPrepared(items[0]);
+                await completeMessages(items[0].ctx.stateDir, items[0].openKfId, [items[0].msg.msgid]);
                 return;
             }
             await dispatchCombined(items);
+            await completeMessages(items[0].ctx.stateDir, items[0].openKfId, items.map((item) => item.msg.msgid));
         },
         onError: (err, items) => {
             items[0]?.ctx.log?.error(`${logTag(items[0].openKfId)} debounce flush failed: ${formatError(err)}`);
@@ -93,11 +96,11 @@ export const _testing = {
     isDuplicate,
     DEDUP_MAX_SIZE,
     handleEvent,
-    drainToLatestCursor,
     resetState() {
         kfLocks.clear();
         processedMsgIds.clear();
         debouncer = null;
+        resetMessageLedgers();
     },
 };
 // ── Cursor persistence (per kfid) ──
@@ -308,39 +311,6 @@ async function handleEvent(ctx, _account, msg) {
             log?.info(`${logTag(kfId)} unhandled event: ${event?.event_type}`);
     }
 }
-// ── Cold Start Catch-up (Layer 1) ──
-// When there is no cursor (file missing, empty, corrupt), drain all pending
-// messages without dispatching them.  This prevents historical message
-// bombardment after cursor loss.
-async function drainToLatestCursor(corpId, appSecret, openKfId, syncToken, stateDir, log) {
-    let cursor = "";
-    let hasMore = true;
-    let totalDrained = 0;
-    while (hasMore) {
-        const syncReq = { limit: 1000, open_kfid: openKfId };
-        if (cursor)
-            syncReq.cursor = cursor;
-        else if (syncToken)
-            syncReq.token = syncToken;
-        let resp;
-        try {
-            resp = await syncMessages(corpId, appSecret, syncReq);
-        }
-        catch (err) {
-            log?.error(`${logTag(openKfId)} drain failed: ${formatError(err)}`);
-            return;
-        }
-        totalDrained += resp.msg_list?.length ?? 0;
-        if (resp.next_cursor) {
-            cursor = resp.next_cursor;
-            await saveCursor(stateDir, openKfId, cursor);
-        }
-        hasMore = resp.has_more === 1;
-    }
-    if (totalDrained > 0) {
-        log?.info(`${logTag(openKfId)} cold start catch-up: skipped ${totalDrained} messages, cursor saved`);
-    }
-}
 // ── Core message handler (per kfid) ──
 export async function handleWebhookEvent(ctx, openKfId, syncToken) {
     // Acquire per-kfId mutex — chains onto any in-flight processing for this kfId
@@ -374,20 +344,21 @@ async function _handleWebhookEventInner(ctx, openKfId, syncToken) {
     // Register this kfid as discovered
     await registerKfId(resolvedKfId);
     let cursor = await loadCursor(stateDir, openKfId);
-    // Layer 1: Cold Start Catch-up — no cursor means drain without dispatching
-    if (!cursor) {
-        log?.info(`${logTag(openKfId)} no cursor, draining to current position`);
-        await drainToLatestCursor(corpId, appSecret, openKfId, syncToken, stateDir, log);
-        return;
-    }
-    // Normal incremental pull — cursor is always present at this point
+    await recoverPendingMessages(ctx, account, resolvedKfId);
+    const isInitialSync = !cursor;
+    // With no prior cursor, process only recent messages below. This keeps a
+    // new installation from replaying history while still answering its first
+    // customer message.
     let hasMore = true;
     while (hasMore) {
         const syncReq = {
             limit: 1000,
             open_kfid: resolvedKfId, // Only pull messages for this kf account
-            cursor,
         };
+        if (cursor)
+            syncReq.cursor = cursor;
+        else if (syncToken)
+            syncReq.token = syncToken;
         let resp;
         try {
             resp = await syncMessages(corpId, appSecret, syncReq);
@@ -407,31 +378,24 @@ async function _handleWebhookEventInner(ctx, openKfId, syncToken) {
                 log?.debug?.(`${logTag(openKfId)} skipping non-customer msg ${msg.msgid} (origin=${msg.origin})`);
                 continue;
             }
-            // Layer 2: skip stale messages to prevent bombardment from corrupt cursors
+            // On a new installation, only dispatch recent messages. Once a cursor is
+            // established, it is safe to process backlog after a short outage.
             const messageAgeS = Math.floor(Date.now() / 1000) - msg.send_time;
-            if (messageAgeS > MAX_MESSAGE_AGE_S) {
+            if (isInitialSync && messageAgeS > MAX_MESSAGE_AGE_S) {
                 log?.debug?.(`${logTag(openKfId)} skipping stale msg ${msg.msgid} (age=${messageAgeS}s)`);
                 continue;
             }
-            // Dedup: skip messages we have already processed
+            // This set avoids repeated work in the current process. The durable
+            // ledger below is the source of truth after a restart.
             if (isDuplicate(msg.msgid)) {
                 log?.debug?.(`${logTag(openKfId)} skipping duplicate msg ${msg.msgid}`);
                 continue;
             }
-            const text = extractText(msg);
-            if (text === null || text === "") {
-                log?.debug?.(`${logTag(openKfId)} skipping empty text for msg ${msg.msgid} (type=${msg.msgtype})`);
+            if (!(await claimMessage(stateDir, openKfId, msg))) {
+                log?.debug?.(`${logTag(openKfId)} skipping claimed msg ${msg.msgid}`);
                 continue;
             }
-            try {
-                const prepared = await prepareMessage(ctx, account, msg, text);
-                if (prepared) {
-                    await getOrCreateDebouncer(ctx).enqueue(prepared);
-                }
-            }
-            catch (err) {
-                log?.error(`${logTag(openKfId)} dispatch error for msg ${msg.msgid}: ${formatError(err)}`);
-            }
+            await enqueueClaimedMessage(ctx, account, openKfId, msg);
         }
         // P1-02: Save cursor AFTER all messages in the batch are processed
         // (at-least-once delivery). If the process crashes mid-batch, the
@@ -442,6 +406,34 @@ async function _handleWebhookEventInner(ctx, openKfId, syncToken) {
             await saveCursor(stateDir, openKfId, cursor);
         }
         hasMore = resp.has_more === 1;
+    }
+}
+async function recoverPendingMessages(ctx, account, openKfId) {
+    const pending = await pendingMessages(ctx.stateDir, openKfId);
+    for (const msg of pending) {
+        if (!(await claimMessage(ctx.stateDir, openKfId, msg)))
+            continue;
+        ctx.log?.info(`${logTag(openKfId)} recovering unfinished msg ${msg.msgid}`);
+        await enqueueClaimedMessage(ctx, account, openKfId, msg);
+    }
+}
+async function enqueueClaimedMessage(ctx, account, openKfId, msg) {
+    const text = extractText(msg);
+    if (text === null || text === "") {
+        ctx.log?.debug?.(`${logTag(openKfId)} skipping empty text for msg ${msg.msgid} (type=${msg.msgtype})`);
+        await completeMessages(ctx.stateDir, openKfId, [msg.msgid]);
+        return;
+    }
+    try {
+        const prepared = await prepareMessage(ctx, account, msg, text);
+        if (prepared)
+            await getOrCreateDebouncer(ctx).enqueue(prepared);
+        else
+            await completeMessages(ctx.stateDir, openKfId, [msg.msgid]);
+    }
+    catch (err) {
+        ctx.log?.error(`${logTag(openKfId)} dispatch error for msg ${msg.msgid}: ${formatError(err)}`);
+        await releaseMessage(ctx.stateDir, openKfId, msg.msgid);
     }
 }
 // ── Prepare + dispatch message to agent ──

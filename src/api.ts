@@ -1,0 +1,356 @@
+/**
+ * WeCom Customer Service API wrapper
+ */
+
+import { extname } from "node:path";
+import { API_POST_TIMEOUT_MS, logTag, MEDIA_TIMEOUT_MS, TOKEN_EXPIRED_CODES } from "./constants.js";
+import { getSharedContext } from "./monitor.js";
+import { clearAccessToken, getAccessToken } from "./token.js";
+import type {
+  WechatKfSendMsgRequest,
+  WechatKfSendMsgResponse,
+  WechatKfSyncMsgRequest,
+  WechatKfSyncMsgResponse,
+  WechatMediaUploadResponse,
+} from "./types.js";
+
+const MIME_MAP = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".gif": "image/gif",
+  ".bmp": "image/bmp",
+  ".webp": "image/webp",
+  ".amr": "audio/amr",
+  ".mp3": "audio/mpeg",
+  ".wav": "audio/wav",
+  ".ogg": "audio/ogg",
+  ".silk": "audio/silk",
+  ".m4a": "audio/mp4",
+  ".aac": "audio/aac",
+  ".mp4": "video/mp4",
+  ".avi": "video/x-msvideo",
+  ".mov": "video/quicktime",
+} as const satisfies Record<string, string>;
+
+const BASE = "https://qyapi.weixin.qq.com/cgi-bin";
+
+/**
+ * Check whether a WeCom API response indicates a business error.
+ * Successful responses have errcode === 0 or omit errcode entirely (undefined).
+ * Using a truthy check so that both 0 and undefined are treated as success.
+ */
+function hasApiError(errcode: number | undefined): boolean {
+  return !!errcode;
+}
+
+async function apiPost<T>(path: string, token: string, body: unknown): Promise<T> {
+  const resp = await fetch(`${BASE}${path}?access_token=${token}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(API_POST_TIMEOUT_MS),
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`${logTag()} API ${path} HTTP ${resp.status}: ${text.slice(0, 200)}`);
+  }
+  return (await resp.json()) as T;
+}
+
+/**
+ * Call apiPost with automatic token refresh on token-expired errors.
+ * Detects errcode 40014/42001/40001, clears the cached token, fetches a
+ * new one and retries exactly once.
+ */
+async function apiPostWithTokenRetry<T>(path: string, corpId: string, appSecret: string, body: unknown): Promise<T> {
+  let token = await getAccessToken(corpId, appSecret);
+  const data = await apiPost<T>(path, token, body);
+
+  const result = data as Record<string, unknown>;
+  if (typeof result.errcode === "number" && TOKEN_EXPIRED_CODES.has(result.errcode)) {
+    getSharedContext()?.botCtx.log?.info(
+      `${logTag()} token expired (errcode=${result.errcode}), refreshing and retrying ${path}`,
+    );
+    clearAccessToken(corpId, appSecret);
+    token = await getAccessToken(corpId, appSecret);
+    return apiPost<T>(path, token, body);
+  }
+  return data;
+}
+
+/** Pull messages from WeChat KF */
+export async function syncMessages(
+  corpId: string,
+  appSecret: string,
+  params: WechatKfSyncMsgRequest,
+): Promise<WechatKfSyncMsgResponse> {
+  const data = await apiPostWithTokenRetry<WechatKfSyncMsgResponse>("/kf/sync_msg", corpId, appSecret, params);
+  if (hasApiError(data.errcode)) {
+    throw new Error(`${logTag()} sync_msg failed: ${data.errcode} ${data.errmsg}`);
+  }
+  return data;
+}
+
+// ── P2-09: Internal shared send helper ──
+
+type WechatMsgType =
+  | "text"
+  | "image"
+  | "voice"
+  | "video"
+  | "file"
+  | "link"
+  | "miniprogram"
+  | "msgmenu"
+  | "location"
+  | "business_card"
+  | "ca_link";
+
+async function sendMessage(
+  corpId: string,
+  appSecret: string,
+  toUser: string,
+  openKfId: string,
+  msgtype: WechatMsgType,
+  payload: Record<string, unknown>,
+): Promise<WechatKfSendMsgResponse> {
+  const body: WechatKfSendMsgRequest = {
+    touser: toUser,
+    open_kfid: openKfId,
+    msgtype,
+    ...payload,
+  };
+  const data = await apiPostWithTokenRetry<WechatKfSendMsgResponse>("/kf/send_msg", corpId, appSecret, body);
+  if (hasApiError(data.errcode)) {
+    throw new Error(`${logTag()} send_msg failed: ${data.errcode} ${data.errmsg}`);
+  }
+  return data;
+}
+
+/** Send a text message to a WeChat user */
+export function sendTextMessage(
+  corpId: string,
+  appSecret: string,
+  toUser: string,
+  openKfId: string,
+  content: string,
+): Promise<WechatKfSendMsgResponse> {
+  return sendMessage(corpId, appSecret, toUser, openKfId, "text", { text: { content } });
+}
+
+/** Download media file from WeChat */
+export async function downloadMedia(
+  corpId: string,
+  appSecret: string,
+  mediaId: string,
+): Promise<{ buffer: Buffer; contentType: string }> {
+  const attemptDownload = async (
+    token: string,
+  ): Promise<{ buffer: Buffer; contentType: string; errcode?: number; errmsg?: string }> => {
+    const resp = await fetch(`${BASE}/media/get?access_token=${token}&media_id=${mediaId}`, {
+      signal: AbortSignal.timeout(MEDIA_TIMEOUT_MS),
+    });
+    if (!resp.ok) {
+      throw new Error(`${logTag()} download media failed: ${resp.status} ${resp.statusText}`);
+    }
+    const contentType = resp.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      const data = (await resp.json()) as { errcode: number; errmsg: string };
+      return { buffer: Buffer.alloc(0), contentType, errcode: data.errcode, errmsg: data.errmsg };
+    }
+    return { buffer: Buffer.from(await resp.arrayBuffer()), contentType };
+  };
+
+  let token = await getAccessToken(corpId, appSecret);
+  const result = await attemptDownload(token);
+
+  if (result.errcode !== undefined) {
+    // Token-expired error: clear and retry once
+    if (TOKEN_EXPIRED_CODES.has(result.errcode)) {
+      getSharedContext()?.botCtx.log?.info(
+        `${logTag()} token expired (errcode=${result.errcode}), refreshing and retrying media download`,
+      );
+      clearAccessToken(corpId, appSecret);
+      token = await getAccessToken(corpId, appSecret);
+      const retry = await attemptDownload(token);
+      if (retry.errcode !== undefined) {
+        throw new Error(`${logTag()} download media failed: ${retry.errcode} ${retry.errmsg}`);
+      }
+      return { buffer: retry.buffer, contentType: retry.contentType };
+    }
+    throw new Error(`${logTag()} download media failed: ${result.errcode} ${result.errmsg}`);
+  }
+  return { buffer: result.buffer, contentType: result.contentType };
+}
+
+// ── P2-10: Constrained media type for uploads ──
+
+type WechatMediaType = "image" | "voice" | "video" | "file";
+
+/** Upload media file to WeChat */
+export async function uploadMedia(
+  corpId: string,
+  appSecret: string,
+  type: WechatMediaType,
+  buffer: Buffer,
+  filename: string,
+): Promise<WechatMediaUploadResponse> {
+  const doUpload = async (token: string): Promise<WechatMediaUploadResponse> => {
+    const formData = new FormData();
+    const ext = extname(filename).toLowerCase() as keyof typeof MIME_MAP;
+    const mime = MIME_MAP[ext] ?? "application/octet-stream";
+    const blob = new Blob([new Uint8Array(buffer)], { type: mime });
+    formData.append("media", blob, filename);
+
+    const resp = await fetch(`${BASE}/media/upload?access_token=${token}&type=${type}`, {
+      method: "POST",
+      body: formData,
+      signal: AbortSignal.timeout(MEDIA_TIMEOUT_MS),
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(`${logTag()} upload media HTTP ${resp.status}: ${text.slice(0, 200)}`);
+    }
+    return (await resp.json()) as WechatMediaUploadResponse;
+  };
+
+  let token = await getAccessToken(corpId, appSecret);
+  let data = await doUpload(token);
+
+  if (TOKEN_EXPIRED_CODES.has(data.errcode)) {
+    getSharedContext()?.botCtx.log?.info(
+      `${logTag()} token expired (errcode=${data.errcode}), refreshing and retrying media upload`,
+    );
+    clearAccessToken(corpId, appSecret);
+    token = await getAccessToken(corpId, appSecret);
+    data = await doUpload(token);
+  }
+
+  if (hasApiError(data.errcode)) {
+    throw new Error(`${logTag()} upload media failed: ${data.errcode} ${data.errmsg}`);
+  }
+  return data;
+}
+
+/** Send an image message to a WeChat user */
+export function sendImageMessage(
+  corpId: string,
+  appSecret: string,
+  toUser: string,
+  openKfId: string,
+  mediaId: string,
+): Promise<WechatKfSendMsgResponse> {
+  return sendMessage(corpId, appSecret, toUser, openKfId, "image", { image: { media_id: mediaId } });
+}
+
+/** Send a voice message to a WeChat user */
+export function sendVoiceMessage(
+  corpId: string,
+  appSecret: string,
+  toUser: string,
+  openKfId: string,
+  mediaId: string,
+): Promise<WechatKfSendMsgResponse> {
+  return sendMessage(corpId, appSecret, toUser, openKfId, "voice", { voice: { media_id: mediaId } });
+}
+
+/** Send a video message to a WeChat user */
+export function sendVideoMessage(
+  corpId: string,
+  appSecret: string,
+  toUser: string,
+  openKfId: string,
+  mediaId: string,
+): Promise<WechatKfSendMsgResponse> {
+  return sendMessage(corpId, appSecret, toUser, openKfId, "video", { video: { media_id: mediaId } });
+}
+
+/** Send a file message to a WeChat user */
+export function sendFileMessage(
+  corpId: string,
+  appSecret: string,
+  toUser: string,
+  openKfId: string,
+  mediaId: string,
+): Promise<WechatKfSendMsgResponse> {
+  return sendMessage(corpId, appSecret, toUser, openKfId, "file", { file: { media_id: mediaId } });
+}
+
+/** Send a link message to a WeChat user */
+export function sendLinkMessage(
+  corpId: string,
+  appSecret: string,
+  toUser: string,
+  openKfId: string,
+  link: { title: string; desc?: string; url: string; thumb_media_id: string },
+): Promise<WechatKfSendMsgResponse> {
+  return sendMessage(corpId, appSecret, toUser, openKfId, "link", { link });
+}
+
+/** Send a location message to a WeChat user */
+export function sendLocationMessage(
+  corpId: string,
+  appSecret: string,
+  toUser: string,
+  openKfId: string,
+  location: { name?: string; address?: string; latitude: number; longitude: number },
+): Promise<WechatKfSendMsgResponse> {
+  return sendMessage(corpId, appSecret, toUser, openKfId, "location", { location });
+}
+
+/** Send a miniprogram message to a WeChat user */
+export function sendMiniprogramMessage(
+  corpId: string,
+  appSecret: string,
+  toUser: string,
+  openKfId: string,
+  miniprogram: { appid: string; title?: string; thumb_media_id: string; pagepath: string },
+): Promise<WechatKfSendMsgResponse> {
+  return sendMessage(corpId, appSecret, toUser, openKfId, "miniprogram", { miniprogram });
+}
+
+/** Send a menu message to a WeChat user */
+export function sendMsgMenuMessage(
+  corpId: string,
+  appSecret: string,
+  toUser: string,
+  openKfId: string,
+  msgmenu: WechatKfSendMsgRequest["msgmenu"],
+): Promise<WechatKfSendMsgResponse> {
+  return sendMessage(corpId, appSecret, toUser, openKfId, "msgmenu", { msgmenu });
+}
+
+/** Send a business card message to a WeChat user */
+export function sendBusinessCardMessage(
+  corpId: string,
+  appSecret: string,
+  toUser: string,
+  openKfId: string,
+  businessCard: { userid: string },
+): Promise<WechatKfSendMsgResponse> {
+  return sendMessage(corpId, appSecret, toUser, openKfId, "business_card", { business_card: businessCard });
+}
+
+/** Send an acquisition link (获客链接) message to a WeChat user */
+export function sendCaLinkMessage(
+  corpId: string,
+  appSecret: string,
+  toUser: string,
+  openKfId: string,
+  caLink: { link_url: string },
+): Promise<WechatKfSendMsgResponse> {
+  return sendMessage(corpId, appSecret, toUser, openKfId, "ca_link", { ca_link: caLink });
+}
+
+/** Send a raw message with arbitrary msgtype — for testing undocumented message types. */
+export function sendRawMessage(
+  corpId: string,
+  appSecret: string,
+  toUser: string,
+  openKfId: string,
+  msgtype: string,
+  payload: Record<string, unknown>,
+): Promise<WechatKfSendMsgResponse> {
+  return sendMessage(corpId, appSecret, toUser, openKfId, msgtype as WechatMsgType, payload);
+}

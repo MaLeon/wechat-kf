@@ -9,7 +9,7 @@
  * - Per-kfId accounts: wait for shared context, then start 30s polling loop
  * - Webhook handler: registered on framework's shared gateway server (no self-managed HTTP server)
  */
-import { formatPairingApproveHint, PAIRING_APPROVED_MESSAGE } from "openclaw/plugin-sdk";
+import { formatPairingApproveHint, PAIRING_APPROVED_MESSAGE } from "openclaw/plugin-sdk/channel-plugin-common";
 import { deleteKfId, disableKfId, enableKfId, getChannelConfig, listAccountIds, loadKfIds, resolveAccount, } from "./accounts.js";
 import { sendTextMessage } from "./api.js";
 import { handleWebhookEvent } from "./bot.js";

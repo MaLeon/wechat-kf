@@ -9,6 +9,7 @@
  */
 export declare const wechatKfConfigSchema: {
     type: "object";
+    additionalProperties: boolean;
     properties: {
         enabled: {
             type: "boolean";

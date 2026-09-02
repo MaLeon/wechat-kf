@@ -17,8 +17,8 @@ const plugin = {
     description: "WeChat Customer Service (企业微信客服) channel plugin",
     configSchema: emptyPluginConfigSchema(),
     register(api) {
-        const rawPath = getChannelConfig(api.config).webhookPath ?? DEFAULT_WEBHOOK_PATH;
-        const webhookPath = rawPath.startsWith("/") ? rawPath : "/" + rawPath;
+        const configuredPath = getChannelConfig(api.config).webhookPath ?? DEFAULT_WEBHOOK_PATH;
+        const webhookPath = configuredPath.startsWith("/") ? configuredPath : `/${configuredPath}`;
         setRuntime(api.runtime);
         api.registerChannel({ plugin: wechatKfPlugin });
         api.registerHttpRoute({ path: webhookPath, auth: "plugin", handler: handleWechatKfWebhook });

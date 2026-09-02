@@ -2,7 +2,6 @@
 
 # OpenClaw 微信客服插件
 
-[![npm version](https://img.shields.io/npm/v/@pawastation%2Fwechat-kf.svg)](https://www.npmjs.com/package/@pawastation/wechat-kf)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![OpenClaw](https://img.shields.io/badge/OpenClaw-channel%20plugin-blue.svg)](https://openclaw.dev)
 
@@ -72,7 +71,7 @@
 ## 前提条件
 
 1. **企业微信账号** — 用企业微信 App 注册即可（个人就能注册，不需要真实企业）
-2. **已安装并运行 OpenClaw** — 参考 [OpenClaw 文档](https://docs.openclaw.ai/)
+2. **已安装并运行 OpenClaw 2026.7.1-2**，以及 Node.js 22.22.3+、24.15.0+ 或 25.9.0+ — 参考 [OpenClaw 文档](https://docs.openclaw.ai/)
 
 ---
 
@@ -81,11 +80,8 @@
 ### 第 1 步：安装插件
 
 ```bash
-# 首次安装
-openclaw plugins install @pawastation/wechat-kf
-
-# 升级
-openclaw plugins update @pawastation/wechat-kf
+# 从本维护仓库安装
+openclaw plugins install git+https://github.com/MaLeon/wechat-kf.git#main
 ```
 
 ### 第 2 步：安装 Tunnel（cloudflared）
@@ -114,18 +110,24 @@ cloudflared tunnel --url http://localhost:7860
 
 ![企业微信 App 菜单里选"创建/加入企业"然后选其他](docs/images/wecom-app-create-enterprise.png)
 
-### 第 4 步：创建客服账号
+在企业微信管理后台「我的企业」中复制**企业 ID**（Corp ID）。
+
+### 第 4 步：创建企业微信自建应用
+
+在企业微信管理后台进入「应用管理」→「自建」→「创建应用」，创建一个自建应用并复制其 Secret。此 Secret 才是配置中的 `appSecret`；微信客服的开发配置页面只负责回调 Token 与 EncodingAESKey，不提供 API Secret。
+
+### 第 5 步：创建客服账号
 
 1. 打开[微信客服管理后台](https://kf.weixin.qq.com/)（用企业微信 App 扫码登录）
 2. 创建一个客服账号（设置名称和头像）
 
 ![在微信客服后台创建客服账号](docs/images/kf-create-account.png)
 
-同时在这里复制**企业 ID**（Corp ID）备用：
+### 第 6 步：在微信客服后台授权自建应用
 
-![复制企业 ID（Corp ID）](docs/images/kf-corp-id.png)
+打开微信客服管理后台的**可调用接口的应用**，授权第 4 步创建的自建应用；再为第 5 步的客服账号开启**通过 API 管理微信客服账号**。这两项都完成后，插件才有权限拉取消息和发送回复。
 
-### 第 5 步：在微信客服后台配置回调
+### 第 7 步：在微信客服后台配置回调
 
 1. 打开[微信客服管理后台](https://kf.weixin.qq.com/) → **开发配置** → **开始使用**
 2. 填入回调地址（你的 Tunnel 地址 + `/wechat-kf`，例如 `https://xxxx.trycloudflare.com/wechat-kf`）
@@ -135,9 +137,9 @@ cloudflared tunnel --url http://localhost:7860
 
 **先复制好 Token 和 EncodingAESKey，暂时不要点「保存」** — 下一步先把这两个值填入 OpenClaw，再回来保存验证。
 
-### 第 6 步：配置 OpenClaw 后台
+### 第 8 步：配置 OpenClaw 后台
 
-进入 OpenClaw 后台，添加微信客服渠道配置。`appSecret` 先随便填一个占位值（第 8 步替换），把上一步生成的 Token 和 EncodingAESKey 填入对应字段，**保存配置**：
+进入 OpenClaw 后台，添加微信客服渠道配置。填入第 7 步生成的 Token 和 EncodingAESKey，以及第 4 步自建应用的 Secret，**保存配置**：
 
 ![OpenClaw 后台插件配置，输入四个值并开启 Enabled](docs/images/openclaw-channel-config.png)
 
@@ -147,31 +149,21 @@ OpenClaw 配置示例：
 channels:
   wechat-kf:
     enabled: true
-    corpId: "wwXXXXXXXXXXXXXXXX" # 第 4 步复制的企业 ID
-    appSecret: "placeholder" # 先填占位，第 8 步替换
-    token: "从第 5 步复制"
-    encodingAESKey: "从第 5 步复制"
+    corpId: "wwXXXXXXXXXXXXXXXX" # 第 3 步复制的企业 ID
+    appSecret: "" # 第 4 步自建应用的 Secret
+    token: "从第 7 步复制"
+    encodingAESKey: "从第 7 步复制"
 ```
 
 保存后 OpenClaw 会立即开始监听回调地址，下一步微信的验证请求才能通过。
 
-### 第 7 步：回到微信客服后台完成验证，获取 Secret
+### 第 9 步：回到微信客服后台完成回调验证
 
 回到[微信客服管理后台](https://kf.weixin.qq.com/)的开发配置页面，点击**「保存」** — 微信会立即向你的回调地址发一个验证请求，OpenClaw 自动回应，验证通过后配置生效。
 
 ![点击「开始使用」来配置收发微信消息的 OpenClaw 服务](docs/images/kf-start-dev-config.png)
 
-验证通过后，在同一页面复制 **App Secret**：
-
-![复制最后需要设置的 App Secret](docs/images/kf-copy-secret.png)
-
-### 第 8 步：更新 Secret
-
-把第 6 步填的占位 Secret 替换为刚复制的实际值，保存配置：
-
-![把随便输入的 Secret 替换为微信客服后台的实际值](docs/images/openclaw-update-secret.png)
-
-### 第 9 步：开始聊天
+### 第 10 步：开始聊天
 
 在微信客服后台找到你的客服账号，复制**客服链接**分享给用户（或者自己先测试）：
 
@@ -179,7 +171,7 @@ channels:
 
 用微信扫码或点开链接，就能和你的 AI Agent 对话了。
 
-### 第 10 步：安全设置（推荐）
+### 第 11 步：安全设置（推荐）
 
 默认情况下，任何拿到客服链接的人都可以发消息。如果你想限制访问，可以开启 `pairing`（配对）模式：
 
@@ -205,7 +197,7 @@ openclaw pairing approve wechat-kf <配对码>
 | ---------------- | -------- | ------ | ------------ | -------------------------------------------------------------------------------------------------------------- |
 | `enabled`        | boolean  | 否     | `false`      | 是否启用该渠道                                                                                                 |
 | `corpId`         | string   | **是** | —            | 企业 ID                                                                                                        |
-| `appSecret`      | string   | **是** | —            | 微信客服 Secret（从微信客服后台「开发配置」获取）                                                              |
+| `appSecret`      | string   | **是** | —            | 在微信客服后台授权的企业微信自建应用 Secret                                                                    |
 | `token`          | string   | **是** | —            | Webhook 回调 Token                                                                                             |
 | `encodingAESKey` | string   | **是** | —            | 43 位 AES 加密密钥                                                                                             |
 | `webhookPath`    | string   | 否     | `/wechat-kf` | Webhook 回调 URL 路径                                                                                          |

@@ -7,7 +7,8 @@
  * - Plugin layer: download media, save via MediaPaths/MediaTypes
  * - OpenClaw runner: handles media understanding (transcription, vision, etc.)
  */
-import type { ChannelLogSink, OpenClawConfig } from "openclaw/plugin-sdk";
+import type { OpenClawConfig } from "openclaw/plugin-sdk";
+import type { ChannelLogSink } from "openclaw/plugin-sdk/channel-runtime";
 import type { ResolvedWechatKfAccount, WechatKfMessage } from "./types.js";
 /** Minimal runtime shape used only for error logging in the reply dispatcher. */
 export type RuntimeErrorLogger = {
@@ -28,10 +29,8 @@ export declare const _testing: {
     isDuplicate: typeof isDuplicate;
     DEDUP_MAX_SIZE: number;
     handleEvent: typeof handleEvent;
-    drainToLatestCursor: typeof drainToLatestCursor;
     resetState(): void;
 };
 declare function handleEvent(ctx: BotContext, _account: ResolvedWechatKfAccount, msg: WechatKfMessage): Promise<void>;
-declare function drainToLatestCursor(corpId: string, appSecret: string, openKfId: string, syncToken: string, stateDir: string, log?: ChannelLogSink): Promise<void>;
 export declare function handleWebhookEvent(ctx: BotContext, openKfId: string, syncToken: string): Promise<void>;
 export {};

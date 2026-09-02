@@ -10,10 +10,14 @@
 import { DEFAULT_WEBHOOK_PATH } from "./constants.js";
 export const wechatKfConfigSchema = {
     type: "object",
+    additionalProperties: false,
     properties: {
         enabled: { type: "boolean" },
         corpId: { type: "string", description: "WeCom Corp ID (企业ID)" },
-        appSecret: { type: "string", description: "Self-built app secret (应用密钥)" },
+        appSecret: {
+            type: "string",
+            description: "Self-built app secret authorized for WeCom Customer Service API",
+        },
         token: { type: "string", description: "Webhook callback token" },
         encodingAESKey: {
             type: "string",
