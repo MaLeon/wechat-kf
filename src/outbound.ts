@@ -48,6 +48,7 @@ import {
   WECHAT_TEXT_CHUNK_BYTE_SAFETY_MARGIN,
   WECHAT_TEXT_CHUNK_LIMIT,
 } from "./constants.js";
+import { assertKfIdAllowed } from "./kf-policy.js";
 import { getSharedContext } from "./monitor.js";
 import { getRuntime } from "./runtime.js";
 import {
@@ -92,6 +93,7 @@ export const wechatKfOutbound: ChannelOutboundAdapter = {
     const account = resolveAccount(cfg, accountId ?? "");
     const effectiveAccountId = accountId ?? "";
     const openKfId = account.openKfId ?? effectiveAccountId;
+    assertKfIdAllowed(account.config, openKfId);
     if (!account.corpId || !account.appSecret || !openKfId) {
       throw new Error(`${logTag()} missing corpId/appSecret/openKfId`);
     }
@@ -311,6 +313,7 @@ export const wechatKfOutbound: ChannelOutboundAdapter = {
   sendMedia: async ({ cfg, to, text, mediaUrl, accountId }) => {
     const account = resolveAccount(cfg, accountId ?? "");
     const openKfId = account.openKfId ?? accountId ?? "";
+    assertKfIdAllowed(account.config, openKfId);
     if (!account.corpId || !account.appSecret || !openKfId) {
       throw new Error(`${logTag()} missing corpId/appSecret/openKfId`);
     }
@@ -358,6 +361,7 @@ export const wechatKfOutbound: ChannelOutboundAdapter = {
   sendPayload: async ({ cfg, to, text, accountId, payload }) => {
     const account = resolveAccount(cfg, accountId ?? "");
     const openKfId = account.openKfId ?? accountId ?? "";
+    assertKfIdAllowed(account.config, openKfId);
     if (!account.corpId || !account.appSecret || !openKfId) {
       throw new Error(`${logTag()} missing corpId/appSecret/openKfId`);
     }

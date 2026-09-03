@@ -13,6 +13,7 @@ import { getChannelConfig, registerKfId, resolveAccount } from "./accounts.js";
 import { downloadMedia, sendTextMessage, syncMessages } from "./api.js";
 import { CHANNEL_ID, cursorFileName, formatError, logTag, MAX_MESSAGE_AGE_S } from "./constants.js";
 import { atomicWriteFile } from "./fs-utils.js";
+import { isKfIdAllowed } from "./kf-policy.js";
 import { claimMessage, completeMessages, pendingMessages, releaseMessage, resetMessageLedgers, } from "./message-ledger.js";
 import { setPairingKfId } from "./monitor.js";
 import { createReplyDispatcher } from "./reply-dispatcher.js";
@@ -336,6 +337,10 @@ async function _handleWebhookEventInner(ctx, openKfId, syncToken) {
     const { cfg, stateDir, log } = ctx;
     const account = resolveAccount(cfg, openKfId); // kfid as accountId
     const resolvedKfId = account.openKfId ?? openKfId; // recover original case
+    if (!isKfIdAllowed(account.config, resolvedKfId)) {
+        log?.info(`${logTag(resolvedKfId)} skipping account outside allowedKfIds`);
+        return;
+    }
     const { corpId, appSecret } = account;
     if (!corpId || !appSecret) {
         log?.error(`${logTag()} missing corpId/appSecret`);

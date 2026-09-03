@@ -217,6 +217,24 @@ describe("pairing adapter", () => {
     expect(pairing.normalizeAllowEntry("  plain  ")).toBe("plain");
   });
 
+  it("notifyApproval does not send via a cached account removed from allowedKfIds", async () => {
+    const { setSharedContext } = await import("./monitor.js");
+    setSharedContext({
+      callbackToken: "tok",
+      encodingAESKey: "key",
+      corpId: "corp1",
+      appSecret: "secret1",
+      webhookPath: "/wechat-kf",
+      botCtx: {
+        cfg: { channels: { "wechat-kf": { allowedKfIds: ["kf_allowed"] } } },
+        stateDir: "/tmp/test-state",
+      },
+    });
+    setPairingKfId("user1", "kf_blocked");
+    await pairing.notifyApproval({ id: "user1", cfg: {} });
+    expect(mockSendTextMessage).not.toHaveBeenCalled();
+  });
+
   it("notifyApproval sends PAIRING_APPROVED_MESSAGE via cached kfId", async () => {
     const { setSharedContext } = await import("./monitor.js");
     await registerKfId("kf_001");

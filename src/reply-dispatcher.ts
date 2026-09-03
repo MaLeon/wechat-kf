@@ -32,6 +32,7 @@ import {
   sendTextMessage,
 } from "./api.js";
 import { logTag, WECHAT_TEXT_CHUNK_BYTE_SAFETY_MARGIN, WECHAT_TEXT_CHUNK_LIMIT } from "./constants.js";
+import { assertKfIdAllowed } from "./kf-policy.js";
 import { getRuntime } from "./runtime.js";
 import {
   chunkTextByUtf8Bytes,
@@ -72,6 +73,7 @@ export function createReplyDispatcher(
     core.channel.reply.createReplyDispatcherWithTyping({
       humanDelay: core.channel.reply.resolveHumanDelayConfig(cfg, agentId),
       deliver: async (payload: ReplyPayload) => {
+        assertKfIdAllowed(account.config, kfId);
         const text = payload.text ?? "";
         const mediaUrls = payload.mediaUrls ?? (payload.mediaUrl ? [payload.mediaUrl] : []);
 

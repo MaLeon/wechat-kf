@@ -23,6 +23,56 @@ function makeTmpDir(): string {
   return join(tmpdir(), `accounts-test-${randomUUID()}`);
 }
 
+describe("allowedKfIds compatibility", () => {
+  const dirs: string[] = [];
+
+  async function discoverAccounts() {
+    _reset();
+    const dir = makeTmpDir();
+    dirs.push(dir);
+    await loadKfIds(dir);
+    await registerKfId("wkSales");
+    await registerKfId("wkSupport");
+  }
+
+  afterEach(async () => {
+    _reset();
+    await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+  });
+
+  it("limits discovered accounts without disabling shared infrastructure", async () => {
+    await discoverAccounts();
+    const cfg = { channels: { "wechat-kf": { enabled: true, allowedKfIds: ["wkSales"] } } };
+    expect(listAccountIds(cfg)).toEqual(["default", "wkSales"]);
+    expect(resolveAccount(cfg, "default").enabled).toBe(true);
+    expect(resolveAccount(cfg, "wkSupport").enabled).toBe(false);
+  });
+
+  it("keeps all discovered accounts when the allowlist is omitted or empty", async () => {
+    await discoverAccounts();
+    expect(listAccountIds({})).toEqual(["default", "wkSales", "wkSupport"]);
+    expect(listAccountIds({ channels: { "wechat-kf": { allowedKfIds: [] } } })).toEqual([
+      "default",
+      "wkSales",
+      "wkSupport",
+    ]);
+  });
+
+  it("recovers configured KF ID case before discovery when OpenClaw normalizes the account ID", () => {
+    _reset();
+    const cfg = { channels: { "wechat-kf": { enabled: true, allowedKfIds: ["wkSales"] } } };
+    expect(resolveAccount(cfg, "wksales")).toMatchObject({ enabled: true, openKfId: "wkSales" });
+  });
+
+  it("does not re-enable an explicitly disabled allowed account", async () => {
+    await discoverAccounts();
+    await disableKfId("wkSales");
+    const cfg = { channels: { "wechat-kf": { enabled: true, allowedKfIds: ["wkSales"] } } };
+    expect(listAccountIds(cfg)).toEqual(["default"]);
+    expect(resolveAccount(cfg, "wksales").enabled).toBe(false);
+  });
+});
+
 describe("accounts state isolation", () => {
   afterEach(() => {
     _reset();

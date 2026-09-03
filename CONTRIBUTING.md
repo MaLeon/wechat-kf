@@ -48,6 +48,7 @@ WeCom Server (Tencent)
 | `token.ts`                | Access token cache with hashed key and auto-refresh                                                                     |
 | `api.ts`                  | WeCom API client (sync_msg, send_msg, sendRawMessage, media upload/download) with token auto-retry                      |
 | `accounts.ts`             | Dynamic KF account discovery, resolution, enable/disable/delete lifecycle                                               |
+| `kf-policy.ts`            | Legacy `allowedKfIds` enforcement for inbound and outbound customer-service accounts                                    |
 | `bot.ts`                  | Message sync with mutex + dedup, DM policy check, event handling, agent dispatch, merged_msg media download             |
 | `monitor.ts`              | Shared context manager (setSharedContext/getSharedContext/waitForSharedContext/clearSharedContext)                       |
 | `reply-dispatcher.ts`     | Plugin-internal streaming reply delivery with chunking, formatting, delays                                              |
@@ -59,6 +60,7 @@ WeCom Server (Tencent)
 | `unicode-format.ts`       | Markdown to Unicode Mathematical styled text                                                                            |
 | `channel.ts`              | ChannelPlugin interface with security adapter (resolveDmPolicy, collectWarnings)                                        |
 | `config-schema.ts`        | JSON Schema for wechat-kf channel config validation                                                                     |
+| `plugin-bootstrap.ts`     | Local schema and pairing helpers that keep synchronous plugin startup independent of SDK module loading               |
 | `runtime.ts`              | OpenClaw runtime reference holder                                                                                       |
 
 ## State Persistence
@@ -74,7 +76,8 @@ WeCom Server (Tencent)
 - **WeCom authorization:** `appSecret` is the Secret of a self-built WeCom app that has been authorized in WeChat KF for the relevant customer-service account.
 - **WeChat crypto:** SHA-1 signature verification + AES-256-CBC with PKCS#7 padding (32-byte blocks, full byte validation). Plaintext format: `random(16) + msgLen(4 BE) + msg(UTF8) + receiverId`.
 - **Graceful shutdown:** All long-lived processes (polling timer, shared gateway handler) listen on `AbortSignal` with pre-check guards.
-- **Access control:** Three modes — `open`, `allowlist`, `pairing` (configured via `dmPolicy`). `pairing` blocks unknown senders, sends a pairing code, and approves via `openclaw pairing approve wechat-kf <code>`. Security adapter exposes `resolveDmPolicy` and `collectWarnings`.
+- **Access control:** Four modes — `open`, `allowlist`, `pairing`, `disabled` (configured via `dmPolicy`). `pairing` blocks unknown senders, sends a pairing code, and approves via `openclaw pairing approve wechat-kf <code>`. Security adapter exposes `resolveDmPolicy` and `collectWarnings`.
+- **SDK loading:** Keep `register()` synchronous and use type-only SDK imports in runtime modules. Bootstrap helper behavior is checked against the pinned SDK. Package smoke tests cover loading the plugin while the host is still importing the SDK.
 - **Race condition safety:** Per-kfId processing mutex prevents concurrent sync_msg calls; msgid deduplication prevents duplicate delivery.
 - **Atomic file writes:** Cursor and kfids persistence uses temp file + rename to prevent corruption on crash.
 - **Token auto-retry:** API calls that fail with expired-token errcodes (40014, 42001, 40001) automatically refresh the token and retry once.
@@ -93,7 +96,10 @@ pnpm run build
 # Type check
 pnpm run typecheck
 
-# Run all tests (~670 tests across 17 files)
+# Verify Git-installable artifacts, package exports, and plugin loading with the host SDK
+pnpm run test:package
+
+# Run all tests
 pnpm test
 
 # Watch mode
@@ -114,6 +120,10 @@ pnpm run format
 # Combined Biome check (lint + format)
 pnpm run check
 ```
+
+## Versioning
+
+Starting with `0.4.1`, use plain `MAJOR.MINOR.PATCH` versions without maintainer suffixes. Continue from this baseline (for example, the next patch is `0.4.2`). Keep `package.json`, `openclaw.plugin.json`, the changelog, and current-version references in both READMEs consistent. Release tags use `v` followed by the package version, such as `v0.4.1`.
 
 ## Contributing Workflow
 

@@ -143,6 +143,21 @@ describe("wechatKfOutbound declarations", () => {
 // ══════════════════════════════════════════════
 
 describe("wechatKfOutbound.sendText", () => {
+  it("rejects disallowed accounts before text, media, or structured sends", async () => {
+    mockResolveAccount.mockReturnValue({ ...defaultAccount, config: { allowedKfIds: ["kf_other"] } });
+    const params = { cfg: {}, to: "user:external", accountId: "kf_test", text: "hello" };
+    await expect(wechatKfOutbound.sendText(params)).rejects.toThrow("allowedKfIds");
+    await expect(wechatKfOutbound.sendMedia({ ...params, mediaUrl: "https://example.com/image.png" })).rejects.toThrow(
+      "allowedKfIds",
+    );
+    await expect(wechatKfOutbound.sendPayload({ ...params, payload: { text: "hello" } })).rejects.toThrow(
+      "allowedKfIds",
+    );
+    expect(mockSendTextMessage).not.toHaveBeenCalled();
+    expect(mockUploadMedia).not.toHaveBeenCalled();
+    expect(mockLoadWebMedia).not.toHaveBeenCalled();
+  });
+
   it("sends a text message to the correct user and returns messageId", async () => {
     const result = await wechatKfOutbound.sendText({
       cfg: { channels: { "wechat-kf": {} } },

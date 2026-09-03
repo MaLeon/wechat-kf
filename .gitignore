@@ -1,6 +1,6 @@
 node_modules/
 .pnpm-store/
-dist/
+# Git installs load dist directly; keep every generated runtime module tracked.
 *.log
 .DS_Store
 .env

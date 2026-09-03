@@ -10,6 +10,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { CHANNEL_ID, DEFAULT_WEBHOOK_PATH, DISABLED_KFIDS_FILE, defaultStateDir, formatError, KFIDS_FILE, logTag, } from "./constants.js";
 import { atomicWriteFile } from "./fs-utils.js";
+import { isKfIdAllowed } from "./kf-policy.js";
 import { getSharedContext } from "./monitor.js";
 /** In-memory set of discovered kfids */
 const discoveredKfIds = new Set();
@@ -188,11 +189,12 @@ async function persistDisabledKfIds() {
         getSharedContext()?.botCtx.log?.warn(`${logTag()} failed to persist disabled kfids: ${formatError(err)}`);
     }
 }
-export function listAccountIds(_cfg) {
+export function listAccountIds(cfg) {
     // "default" is always first — represents enterprise-level shared infrastructure.
     // Real kfIds follow. When no kfIds are discovered yet, returns ["default"].
     preloadKfIdsSync();
-    const ids = getEnabledKfIds();
+    const config = getChannelConfig(cfg);
+    const ids = getEnabledKfIds().filter((id) => isKfIdAllowed(config, id));
     return ["default", ...ids];
 }
 /**
@@ -200,11 +202,17 @@ export function listAccountIds(_cfg) {
  * OpenClaw core normalizes accountIds to lowercase, but WeChat KF API requires
  * the original case-sensitive openKfId.
  */
-function recoverOriginalKfId(normalizedId) {
+function recoverOriginalKfId(normalizedId, configuredIds = []) {
     if (normalizedId === "default")
         return undefined;
+    if (discoveredKfIds.has(normalizedId) || configuredIds.includes(normalizedId))
+        return normalizedId;
     // Look up the original-case kfId from our discovered set
     for (const kfId of discoveredKfIds) {
+        if (kfId.toLowerCase() === normalizedId.toLowerCase())
+            return kfId;
+    }
+    for (const kfId of configuredIds) {
         if (kfId.toLowerCase() === normalizedId.toLowerCase())
             return kfId;
     }
@@ -228,7 +236,8 @@ export function resolveAccount(cfg, accountId) {
     const appSecret = config.appSecret;
     const token = config.token;
     const encodingAESKey = config.encodingAESKey;
-    const kfIdDisabled = id !== "default" && !isKfIdEnabled(id);
+    const openKfId = recoverOriginalKfId(id, config.allowedKfIds);
+    const kfIdDisabled = id !== "default" && (!isKfIdEnabled(id) || !isKfIdAllowed(config, openKfId ?? id));
     const enabled = kfIdDisabled ? false : (config.enabled ?? false);
     const configured = !!(corpId && appSecret && token && encodingAESKey);
     return {
@@ -239,7 +248,7 @@ export function resolveAccount(cfg, accountId) {
         appSecret,
         token,
         encodingAESKey,
-        openKfId: recoverOriginalKfId(id),
+        openKfId,
         webhookPath: config.webhookPath ?? DEFAULT_WEBHOOK_PATH,
         config,
     };

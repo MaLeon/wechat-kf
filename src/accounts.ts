@@ -20,6 +20,7 @@ import {
   logTag,
 } from "./constants.js";
 import { atomicWriteFile } from "./fs-utils.js";
+import { isKfIdAllowed } from "./kf-policy.js";
 import { getSharedContext } from "./monitor.js";
 import type { ResolvedWechatKfAccount, WechatKfConfig } from "./types.js";
 
@@ -193,11 +194,12 @@ async function persistDisabledKfIds(): Promise<void> {
   }
 }
 
-export function listAccountIds(_cfg: OpenClawConfig): string[] {
+export function listAccountIds(cfg: OpenClawConfig): string[] {
   // "default" is always first — represents enterprise-level shared infrastructure.
   // Real kfIds follow. When no kfIds are discovered yet, returns ["default"].
   preloadKfIdsSync();
-  const ids = getEnabledKfIds();
+  const config = getChannelConfig(cfg);
+  const ids = getEnabledKfIds().filter((id) => isKfIdAllowed(config, id));
   return ["default", ...ids];
 }
 
@@ -206,10 +208,14 @@ export function listAccountIds(_cfg: OpenClawConfig): string[] {
  * OpenClaw core normalizes accountIds to lowercase, but WeChat KF API requires
  * the original case-sensitive openKfId.
  */
-function recoverOriginalKfId(normalizedId: string): string | undefined {
+function recoverOriginalKfId(normalizedId: string, configuredIds: string[] = []): string | undefined {
   if (normalizedId === "default") return undefined;
+  if (discoveredKfIds.has(normalizedId) || configuredIds.includes(normalizedId)) return normalizedId;
   // Look up the original-case kfId from our discovered set
   for (const kfId of discoveredKfIds) {
+    if (kfId.toLowerCase() === normalizedId.toLowerCase()) return kfId;
+  }
+  for (const kfId of configuredIds) {
     if (kfId.toLowerCase() === normalizedId.toLowerCase()) return kfId;
   }
   // Fallback: return as-is (may fail if case matters)
@@ -235,7 +241,8 @@ export function resolveAccount(cfg: OpenClawConfig, accountId?: string): Resolve
   const appSecret = config.appSecret;
   const token = config.token;
   const encodingAESKey = config.encodingAESKey;
-  const kfIdDisabled = id !== "default" && !isKfIdEnabled(id);
+  const openKfId = recoverOriginalKfId(id, config.allowedKfIds);
+  const kfIdDisabled = id !== "default" && (!isKfIdEnabled(id) || !isKfIdAllowed(config, openKfId ?? id));
   const enabled = kfIdDisabled ? false : (config.enabled ?? false);
   const configured = !!(corpId && appSecret && token && encodingAESKey);
 
@@ -247,7 +254,7 @@ export function resolveAccount(cfg: OpenClawConfig, accountId?: string): Resolve
     appSecret,
     token,
     encodingAESKey,
-    openKfId: recoverOriginalKfId(id),
+    openKfId,
     webhookPath: config.webhookPath ?? DEFAULT_WEBHOOK_PATH,
     config,
   };

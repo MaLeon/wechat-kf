@@ -113,6 +113,31 @@ function makeMockRuntime() {
 
 // ── Tests ──
 
+describe("bot KF account allowlist", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    _testing.resetState();
+  });
+
+  it("does not pull messages for a disallowed account, including polling calls without a token", async () => {
+    const cfg = { channels: { "wechat-kf": { corpId: "corp1", appSecret: "secret1", allowedKfIds: ["wkSales"] } } };
+    await handleWebhookEvent({ cfg, stateDir: "/tmp/state" }, "wkSupport", "");
+    expect(mockSyncMessages).not.toHaveBeenCalled();
+    expect(mockGetRuntime).not.toHaveBeenCalled();
+  });
+
+  it("pulls the original case-sensitive account ID for an allowed normalized polling ID", async () => {
+    const cfg = { channels: { "wechat-kf": { corpId: "corp1", appSecret: "secret1", allowedKfIds: ["wkSales"] } } };
+    mockSyncMessages.mockResolvedValueOnce(makeSyncResponse([]));
+    await handleWebhookEvent({ cfg, stateDir: "/tmp/state" }, "wksales", "");
+    expect(mockSyncMessages).toHaveBeenCalledWith(
+      "corp1",
+      "secret1",
+      expect.objectContaining({ open_kfid: "wkSales" }),
+    );
+  });
+});
+
 describe("bot DM policy enforcement", () => {
   let logMessages: string[];
   let log: BotContext["log"];

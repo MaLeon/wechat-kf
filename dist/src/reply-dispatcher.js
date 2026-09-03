@@ -21,6 +21,7 @@
 import { resolveAccount } from "./accounts.js";
 import { sendBusinessCardMessage, sendCaLinkMessage, sendLinkMessage, sendLocationMessage, sendMiniprogramMessage, sendMsgMenuMessage, sendRawMessage, sendTextMessage, } from "./api.js";
 import { logTag, WECHAT_TEXT_CHUNK_BYTE_SAFETY_MARGIN, WECHAT_TEXT_CHUNK_LIMIT } from "./constants.js";
+import { assertKfIdAllowed } from "./kf-policy.js";
 import { getRuntime } from "./runtime.js";
 import { chunkTextByUtf8Bytes, formatText, mediaKindToWechatType, resolveThumbMediaId, uploadAndSendMedia, } from "./send-utils.js";
 import { buildMsgMenuPayload, parseWechatDirective } from "./wechat-kf-directives.js";
@@ -33,6 +34,7 @@ export function createReplyDispatcher(params) {
     const { dispatcher, replyOptions, markDispatchIdle, markRunComplete } = core.channel.reply.createReplyDispatcherWithTyping({
         humanDelay: core.channel.reply.resolveHumanDelayConfig(cfg, agentId),
         deliver: async (payload) => {
+            assertKfIdAllowed(account.config, kfId);
             const text = payload.text ?? "";
             const mediaUrls = payload.mediaUrls ?? (payload.mediaUrl ? [payload.mediaUrl] : []);
             const { corpId, appSecret } = account;

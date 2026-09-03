@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { validateJsonSchemaValue } from "openclaw/plugin-sdk/json-schema-runtime";
 import { describe, expect, it } from "vitest";
 import { wechatKfConfigSchema } from "../src/config-schema.js";
 
@@ -36,6 +37,31 @@ function pickConstraints(obj: Record<string, unknown>) {
 }
 
 describe("config-schema alignment", () => {
+  describe("legacy channel configuration", () => {
+    const schemas = [manifestSchema, wechatKfConfigSchema];
+
+    it("accepts existing allowedKfIds and groupAllowFrom with the actual OpenClaw validator", () => {
+      for (const schema of schemas) {
+        const result = validateJsonSchemaValue({
+          schema,
+          cacheKey: "wechat-kf-legacy",
+          cache: false,
+          value: { allowedKfIds: ["wkSales"], groupAllowFrom: ["legacy-user"], allowFrom: ["dm-user"] },
+        });
+        expect(result.ok).toBe(true);
+      }
+    });
+
+    it("continues to reject misspelled fields and invalid allowlist types", () => {
+      for (const schema of schemas) {
+        for (const value of [{ allowedKfId: ["wkSales"] }, { allowedKfIds: "wkSales" }, { groupAllowFrom: [42] }]) {
+          expect(validateJsonSchemaValue({ schema, cacheKey: "wechat-kf-invalid", cache: false, value }).ok).toBe(
+            false,
+          );
+        }
+      }
+    });
+  });
   describe("manifest channel config", () => {
     it("should have uiHints section", () => {
       expect(manifestUiHints).toBeDefined();

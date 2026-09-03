@@ -8,10 +8,11 @@
  * Designed to be registered on the framework's shared gateway server
  * via api.registerHttpRoute({ path, handler }).
  */
-import { registerKfId } from "./accounts.js";
+import { getChannelConfig, registerKfId } from "./accounts.js";
 import { handleWebhookEvent } from "./bot.js";
 import { formatError, logTag } from "./constants.js";
 import { decrypt, verifySignature } from "./crypto.js";
+import { isKfIdAllowed } from "./kf-policy.js";
 import { getSharedContext } from "./monitor.js";
 export function parseQuery(url) {
     const idx = url.indexOf("?");
@@ -123,6 +124,10 @@ export async function handleWechatKfWebhook(req, res) {
             // Respond immediately, process async
             res.writeHead(200, { "Content-Type": "text/plain" });
             res.end("success");
+            if (!isKfIdAllowed(getChannelConfig(ctx.botCtx.cfg), openKfId)) {
+                ctx.botCtx.log?.info(`${logTag(openKfId)} skipping account outside allowedKfIds`);
+                return;
+            }
             // Fire-and-forget: register kfId and trigger message sync
             Promise.resolve((async () => {
                 if (openKfId) {

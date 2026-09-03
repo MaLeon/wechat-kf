@@ -116,10 +116,12 @@ async function sendMessage(
   payload: Record<string, unknown>,
 ): Promise<WechatKfSendMsgResponse> {
   const body: WechatKfSendMsgRequest = {
+    ...payload,
+    // Raw directives may supply message content, but cannot change the
+    // account or recipient selected and authorized by the caller.
     touser: toUser,
     open_kfid: openKfId,
     msgtype,
-    ...payload,
   };
   const data = await apiPostWithTokenRetry<WechatKfSendMsgResponse>("/kf/send_msg", corpId, appSecret, body);
   if (hasApiError(data.errcode)) {

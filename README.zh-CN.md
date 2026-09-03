@@ -79,6 +79,12 @@
 
 ### 第 1 步：安装插件
 
+`0.4.1` 修复旧配置校验失败、启动时的 ESM 加载竞态，以及从 Git 安装时缺少运行文件的问题。已有配置中的 `channels.wechat-kf.allowedKfIds`、`channels.wechat-kf.groupAllowFrom` 数组可保留。`allowedKfIds` 限制插件可处理的客服账号，未设置或为空数组时允许全部已发现账号。`groupAllowFrom` 仅保留配置兼容性：当前渠道只支持私聊，限制私聊用户请使用 `dmPolicy` 和 `allowFrom`。如果这些字段曾被自动修复工具删除，请从配置备份恢复所需值。
+
+如果 `0.4.0-maleon.1` 加载 `openclaw/plugin-sdk/channel-plugin-common` 时报告 `ERR_REQUIRE_ESM_RACE_CONDITION`，请升级修复包。修复版将启动所需的空配置校验、配对提示改为本地辅助函数，并通过 SDK 兼容测试保持行为一致，避免启动期间运行时导入 SDK。OpenClaw `2026.7.1-2` 要求 `register()` 同步执行，直接改为 `async` 不能解决问题。
+
+修复包同时补齐 `dist/src/message-ledger.js`（其缺失会导致另一个 `ERR_MODULE_NOT_FOUND` 错误），并补充 CommonJS 加载器所需的包导出回退。已在本地 macOS ARM64 上使用 OpenClaw `2026.7.1-2`，分别在 Node `24.19.0` 和 `26.7.0` 下验证解包后的插件加载、注册及 SDK 并发加载。生产 Linux 网关启动和企业微信实际收发仍需部署验证。
+
 ```bash
 # 从本维护仓库安装
 openclaw plugins install git+https://github.com/MaLeon/wechat-kf.git#main
@@ -203,6 +209,8 @@ openclaw pairing approve wechat-kf <配对码>
 | `webhookPath`    | string   | 否     | `/wechat-kf` | Webhook 回调 URL 路径                                                                                          |
 | `dmPolicy`       | string   | 否     | `"open"`     | `open`（开放）/ `allowlist`（白名单）/ `pairing`（配对）/ `disabled`（禁用）                                   |
 | `allowFrom`      | string[] | 否     | `[]`         | 允许的 external_userid 列表（dmPolicy 为 `allowlist` 时使用）                                                  |
+| `allowedKfIds`   | string[] | 否     | `[]`         | 允许的原始 `open_kfid` 列表；未设置或为空时允许全部已发现账号，限制覆盖回调、轮询和发送                            |
+| `groupAllowFrom` | string[] | 否     | —            | 旧配置兼容字段；当前渠道不支持群聊，该字段不生效                                                                  |
 | `debounceMs`     | number   | 否     | `2000`       | 消息防抖窗口（毫秒，0–10000）：等待窗口内无新消息后再发给 Agent，适合用户分多条消息输入的场景；设为 `0` 可禁用 |
 
 ---

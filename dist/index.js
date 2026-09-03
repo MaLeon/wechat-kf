@@ -1,10 +1,10 @@
 /**
  * WeChat KF (微信客服) OpenClaw Channel Plugin
  */
-import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
 import { getChannelConfig } from "./src/accounts.js";
 import { wechatKfPlugin } from "./src/channel.js";
 import { DEFAULT_WEBHOOK_PATH } from "./src/constants.js";
+import { pluginConfigSchema } from "./src/plugin-bootstrap.js";
 import { setRuntime } from "./src/runtime.js";
 import { handleWechatKfWebhook } from "./src/webhook.js";
 export { sendBusinessCardMessage, sendCaLinkMessage, sendLocationMessage, sendMiniprogramMessage, sendMsgMenuMessage, sendTextMessage, syncMessages, } from "./src/api.js";
@@ -15,7 +15,7 @@ const plugin = {
     id: "wechat-kf",
     name: "WeChat KF",
     description: "WeChat Customer Service (企业微信客服) channel plugin",
-    configSchema: emptyPluginConfigSchema(),
+    configSchema: pluginConfigSchema,
     register(api) {
         const configuredPath = getChannelConfig(api.config).webhookPath ?? DEFAULT_WEBHOOK_PATH;
         const webhookPath = configuredPath.startsWith("/") ? configuredPath : `/${configuredPath}`;

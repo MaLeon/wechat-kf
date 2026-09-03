@@ -11,7 +11,6 @@
  */
 
 import type { ChannelAccountSnapshot, ChannelGatewayContext, ChannelPlugin, OpenClawConfig } from "openclaw/plugin-sdk";
-import { formatPairingApproveHint, PAIRING_APPROVED_MESSAGE } from "openclaw/plugin-sdk/channel-plugin-common";
 import {
   deleteKfId,
   disableKfId,
@@ -26,6 +25,7 @@ import type { BotContext } from "./bot.js";
 import { handleWebhookEvent } from "./bot.js";
 import { wechatKfConfigSchema } from "./config-schema.js";
 import { CHANNEL_ID, CONFIG_KEY, DEFAULT_WEBHOOK_PATH, defaultStateDir, formatError, logTag } from "./constants.js";
+import { isKfIdAllowed } from "./kf-policy.js";
 import {
   clearSharedContext,
   getPairingKfId,
@@ -34,6 +34,7 @@ import {
   waitForSharedContext,
 } from "./monitor.js";
 import { wechatKfOutbound } from "./outbound.js";
+import { formatPairingApproveHint, PAIRING_APPROVED_MESSAGE } from "./plugin-bootstrap.js";
 import { getRuntime } from "./runtime.js";
 import { getAccessToken } from "./token.js";
 import type { ResolvedWechatKfAccount } from "./types.js";
@@ -186,7 +187,7 @@ export const wechatKfPlugin: ChannelPlugin<ResolvedWechatKfAccount> = {
       const { corpId, appSecret } = shared;
       if (!corpId || !appSecret) return;
       const kfId = getPairingKfId(id) ?? listAccountIds(shared.botCtx.cfg).find((a) => a !== "default");
-      if (!kfId) return;
+      if (!kfId || !isKfIdAllowed(getChannelConfig(shared.botCtx.cfg), kfId)) return;
       await sendTextMessage(corpId, appSecret, id, kfId, PAIRING_APPROVED_MESSAGE);
     },
   },

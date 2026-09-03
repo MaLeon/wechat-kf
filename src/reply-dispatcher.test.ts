@@ -155,6 +155,17 @@ describe("createReplyDispatcher", () => {
 });
 
 describe("deliver callback: text", () => {
+  it("blocks a reply for an account outside allowedKfIds before loading media or sending", async () => {
+    mockGetRuntime.mockReturnValue(makeMockRuntime());
+    mockResolveAccount.mockReturnValue({ ...defaultAccount, config: { allowedKfIds: ["kf_other"] } });
+    createReplyDispatcher(makeParams());
+    await expect(capturedDeliver?.({ text: "hello", mediaUrl: "https://example.com/image.png" })).rejects.toThrow(
+      "allowedKfIds",
+    );
+    expect(mockSendTextMessage).not.toHaveBeenCalled();
+    expect(mockLoadWebMedia).not.toHaveBeenCalled();
+  });
+
   it("sends formatted text via sendTextMessage", async () => {
     const runtime = makeMockRuntime();
     mockGetRuntime.mockReturnValue(runtime);

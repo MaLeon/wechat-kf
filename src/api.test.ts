@@ -22,6 +22,7 @@ import {
   sendLocationMessage,
   sendMiniprogramMessage,
   sendMsgMenuMessage,
+  sendRawMessage,
   sendTextMessage,
   sendVideoMessage,
   sendVoiceMessage,
@@ -554,6 +555,22 @@ describe("new send functions (location, miniprogram, msgmenu, business_card, ca_
     }) as typeof fetch;
     return { body: () => captured };
   }
+
+  it("raw message content cannot override the authorized account or recipient", async () => {
+    const { body } = captureSendBody();
+    await sendRawMessage(CORP_ID, APP_SECRET, "user1", "kf_allowed", "text", {
+      open_kfid: "kf_blocked",
+      touser: "other-user",
+      msgtype: "image",
+      text: { content: "hello" },
+    });
+    expect(body()).toEqual({
+      open_kfid: "kf_allowed",
+      touser: "user1",
+      msgtype: "text",
+      text: { content: "hello" },
+    });
+  });
 
   it("sendLocationMessage should send correct msgtype and location payload", async () => {
     const { body } = captureSendBody();

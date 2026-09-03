@@ -286,6 +286,29 @@ describe("handleWechatKfWebhook", () => {
     );
   });
 
+  it("POST: acknowledges a disallowed KF account without registering it or triggering sync", async () => {
+    const shared = makeSharedCtx();
+    shared.botCtx.cfg = { channels: { "wechat-kf": { allowedKfIds: ["kf_allowed"] } } };
+    setSharedContext(shared);
+    const encrypted = encrypt(
+      ENCODING_AES_KEY,
+      "<xml><Token>sync</Token><OpenKfId>kf_blocked</OpenKfId></xml>",
+      CORP_ID,
+    );
+    const signature = computeSignature(CALLBACK_TOKEN, "123", "nonce", encrypted);
+    const req = createMockReq({
+      method: "POST",
+      url: `${WEBHOOK_PATH}?msg_signature=${signature}&timestamp=123&nonce=nonce`,
+      body: `<xml><Encrypt><![CDATA[${encrypted}]]></Encrypt></xml>`,
+    });
+    const res = createMockRes();
+    await handleWechatKfWebhook(req, res);
+    expect(res._statusCode).toBe(200);
+    expect(res._body).toBe("success");
+    expect(mockRegisterKfId).not.toHaveBeenCalled();
+    expect(mockHandleWebhookEvent).not.toHaveBeenCalled();
+  });
+
   it("POST: logs error when async handler throws", async () => {
     const logError = vi.fn();
     setSharedContext(

@@ -67,6 +67,12 @@ Let WeChat users chat with your OpenClaw AI agent via **WeChat Customer Service*
 
 ## Installation
 
+`0.4.1` fixes legacy configuration validation, the startup ESM race, and missing runtime files in Git installs. Existing `channels.wechat-kf.allowedKfIds` and `channels.wechat-kf.groupAllowFrom` arrays can remain in your configuration. `allowedKfIds` restricts the customer-service accounts used by the plugin; omitted or empty allows all discovered accounts. `groupAllowFrom` is retained for compatibility only: this channel supports direct messages, and DM sender restrictions use `dmPolicy` with `allowFrom`. If a repair tool removed these fields, restore the intended values from your configuration backup.
+
+If `0.4.0-maleon.1` reports `ERR_REQUIRE_ESM_RACE_CONDITION` for `openclaw/plugin-sdk/channel-plugin-common`, upgrade to the fixed package. Bootstrap now uses local schema and pairing helpers with SDK compatibility tests, avoiding runtime SDK imports while preserving synchronous registration. OpenClaw `2026.7.1-2` requires `register()` to be synchronous; changing it to `async` is not a valid fix.
+
+The fixed package also includes `dist/src/message-ledger.js` (missing files caused a separate `ERR_MODULE_NOT_FOUND`) and package export fallbacks for CommonJS loaders. Extracted-package loading, registration, and concurrent SDK loading were verified locally with OpenClaw `2026.7.1-2` on Node `24.19.0` and `26.7.0` (macOS ARM64). The production Linux gateway and live WeCom message flow still require deployment verification.
+
 ```bash
 # Install this maintained repository
 openclaw plugins install git+https://github.com/MaLeon/wechat-kf.git#main
@@ -159,6 +165,8 @@ openclaw pairing approve wechat-kf <code>
 | `webhookPath`    | string   | No       | `/wechat-kf` | URL path for webhook callbacks                                                                                             |
 | `dmPolicy`       | string   | No       | `"open"`     | `open` / `allowlist` / `pairing` / `disabled`                                                                              |
 | `allowFrom`      | string[] | No       | `[]`         | Allowed external_userids (when `dmPolicy` is `allowlist`)                                                                  |
+| `allowedKfIds`   | string[] | No       | `[]`         | Allowed original `open_kfid` values; omitted or empty allows all discovered accounts; applies to callbacks, polling, and sends |
+| `groupAllowFrom` | string[] | No       | —            | Legacy compatibility field; unused because this channel has no group chats                                                   |
 | `debounceMs`     | number   | No       | `2000`       | Debounce window in ms (0–10000): waits until no new message in window, then dispatches all to agent; set to `0` to disable |
 
 ---

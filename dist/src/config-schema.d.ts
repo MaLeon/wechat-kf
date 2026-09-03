@@ -1,7 +1,7 @@
 /**
  * JSON Schema for wechat-kf channel config
  *
- * Authoritative source: openclaw.plugin.json → configSchema.
+ * Authoritative source: openclaw.plugin.json → channelConfigs.wechat-kf.schema.
  * This runtime copy must stay in sync with the manifest.
  *
  * Flat enterprise-level credentials. No per-account config needed —
@@ -46,6 +46,20 @@ export declare const wechatKfConfigSchema: {
             items: {
                 type: "string";
             };
+        };
+        allowedKfIds: {
+            type: "array";
+            items: {
+                type: "string";
+            };
+            description: string;
+        };
+        groupAllowFrom: {
+            type: "array";
+            items: {
+                type: "string";
+            };
+            description: string;
         };
         debounceMs: {
             type: "number";

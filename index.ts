@@ -3,10 +3,10 @@
  */
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
 import { getChannelConfig } from "./src/accounts.js";
 import { wechatKfPlugin } from "./src/channel.js";
 import { DEFAULT_WEBHOOK_PATH } from "./src/constants.js";
+import { pluginConfigSchema } from "./src/plugin-bootstrap.js";
 import { setRuntime } from "./src/runtime.js";
 import { handleWechatKfWebhook } from "./src/webhook.js";
 
@@ -27,13 +27,13 @@ const plugin: {
   id: string;
   name: string;
   description: string;
-  configSchema: ReturnType<typeof emptyPluginConfigSchema>;
+  configSchema: typeof pluginConfigSchema;
   register: (api: OpenClawPluginApi) => void;
 } = {
   id: "wechat-kf",
   name: "WeChat KF",
   description: "WeChat Customer Service (企业微信客服) channel plugin",
-  configSchema: emptyPluginConfigSchema(),
+  configSchema: pluginConfigSchema,
   register(api: OpenClawPluginApi) {
     const configuredPath = getChannelConfig(api.config).webhookPath ?? DEFAULT_WEBHOOK_PATH;
     const webhookPath = configuredPath.startsWith("/") ? configuredPath : `/${configuredPath}`;

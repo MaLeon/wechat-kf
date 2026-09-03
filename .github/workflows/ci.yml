@@ -47,7 +47,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [22, 24]
+        node-version: [22, 24, 26]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -59,14 +59,25 @@ jobs:
       - run: pnpm test
 
   build:
-    name: Build
+    name: Build and package (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24, 26]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ matrix.node-version }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Load committed distribution before rebuilding
+        run: pnpm run test:package
       - run: pnpm run build
+      - name: Verify committed build output is current
+        run: |
+          git diff --exit-code -- dist/
+          test -z "$(git ls-files --others --exclude-standard -- dist/)"
+      - run: pnpm run test:package

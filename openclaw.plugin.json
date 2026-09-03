@@ -2,7 +2,7 @@
   "id": "wechat-kf",
   "name": "WeChat Customer Service",
   "description": "OpenClaw channel plugin for WeChat Customer Service (企业微信客服) via WeCom KF API",
-  "version": "0.4.0-maleon.1",
+  "version": "0.4.1",
   "channels": ["wechat-kf"],
   "configSchema": {
     "type": "object",
@@ -33,6 +33,16 @@
           "webhookPath": { "type": "string", "default": "/wechat-kf" },
           "dmPolicy": { "type": "string", "enum": ["open", "pairing", "allowlist", "disabled"], "default": "open" },
           "allowFrom": { "type": "array", "items": { "type": "string" } },
+          "allowedKfIds": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Allowed customer-service account IDs; omitted or empty allows all discovered accounts"
+          },
+          "groupAllowFrom": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Legacy setting retained for compatibility; this channel supports direct messages only"
+          },
           "debounceMs": {
             "type": "number",
             "description": "Inbound message debounce window in milliseconds (0 = disabled)",
@@ -49,6 +59,8 @@
         "webhookPath": { "label": "Webhook Path", "placeholder": "/wechat-kf" },
         "dmPolicy": { "label": "DM Policy", "placeholder": "open" },
         "allowFrom": { "label": "Allowlist", "placeholder": "List of allowed external user IDs" },
+        "allowedKfIds": { "label": "Allowed KF Accounts", "placeholder": "List of allowed open_kfid values" },
+        "groupAllowFrom": { "label": "Legacy Group Allowlist (unused)", "advanced": true },
         "debounceMs": { "label": "Debounce (ms)", "placeholder": "2000" }
       }
     }

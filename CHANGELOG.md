@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-03
+
+### Changed
+
+- Use plain `MAJOR.MINOR.PATCH` version numbers starting from `0.4.1`; future releases continue from this baseline without a maintainer suffix.
+
+### Fixed
+
+- Remove startup runtime imports of the OpenClaw SDK to prevent `ERR_REQUIRE_ESM_RACE_CONDITION` when jiti requires an SDK module still being imported by the host. Preserve synchronous registration and use local bootstrap helpers tested against the pinned SDK, including profile/container-aware pairing commands.
+- Accept legacy `allowedKfIds` and `groupAllowFrom` string arrays in the static and runtime channel schemas while keeping unknown-field validation strict.
+- Enforce `allowedKfIds` for account discovery results, callbacks, polling, outbound delivery, and pairing notifications. Keep `groupAllowFrom` as a documented compatibility field for this DM-only channel.
+- Prevent raw message payloads from replacing the caller-selected account or recipient.
+- Include the missing `dist/src/message-ledger` runtime artifacts in Git installations and stop ignoring new files under `dist/`.
+- Add default package exports so supported Node CommonJS loaders can resolve the ESM entry and subpaths.
+
+### Tests
+
+- Add an offline package smoke check that packs eligible Git files, extracts the archive, and verifies ESM, CommonJS, jiti, plugin registration, and legacy configuration with the host OpenClaw SDK.
+- Reproduce the reported race with the real SDK in fresh processes before the fix; verify the patched package under native and jiti loading while either SDK entry is still loading. Each regression run includes a failing SDK require as a timing control.
+- Locally pass 699 unit tests on Node `26.7.0` and package checks on Node `24.19.0` / `26.7.0` with OpenClaw `2026.7.1-2` (macOS ARM64). Production Linux gateway and live WeCom delivery are not covered by these local checks.
+- Check committed artifacts before rebuilding in CI and verify build output on Node 22, 24, and 26.
+
 ## [0.4.0-maleon.1] - 2026-09-02
 
 ### Changed
