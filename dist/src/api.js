@@ -72,12 +72,10 @@ export async function syncMessages(corpId, appSecret, params) {
 }
 async function sendMessage(corpId, appSecret, toUser, openKfId, msgtype, payload) {
     const body = {
-        ...payload,
-        // Raw directives may supply message content, but cannot change the
-        // account or recipient selected and authorized by the caller.
         touser: toUser,
         open_kfid: openKfId,
         msgtype,
+        ...payload,
     };
     const data = await apiPostWithTokenRetry("/kf/send_msg", corpId, appSecret, body);
     if (hasApiError(data.errcode)) {

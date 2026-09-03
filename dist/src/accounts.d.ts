@@ -29,7 +29,7 @@ export declare function enableKfId(kfId: string): Promise<boolean>;
 export declare function deleteKfId(kfId: string): Promise<boolean>;
 /** Load persisted kfids from state dir */
 export declare function loadKfIds(dir: string): Promise<void>;
-export declare function listAccountIds(cfg: OpenClawConfig): string[];
+export declare function listAccountIds(_cfg: OpenClawConfig): string[];
 /**
  * Reset all module-level mutable state.
  * @internal Exposed for testing only — allows test isolation between runs.

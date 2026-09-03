@@ -28,5 +28,5 @@
  *
  * accountId = openKfId (dynamically discovered)
  */
-import type { ChannelOutboundAdapter } from "openclaw/plugin-sdk/channel-runtime";
+import type { ChannelOutboundAdapter } from "openclaw/plugin-sdk";
 export declare const wechatKfOutbound: ChannelOutboundAdapter;

@@ -7,10 +7,6 @@ export type WechatKfConfig = {
     webhookPath?: string;
     dmPolicy?: "open" | "pairing" | "allowlist" | "disabled";
     allowFrom?: string[];
-    /** KF account allowlist. Omitted or empty means all discovered accounts. */
-    allowedKfIds?: string[];
-    /** Legacy group setting retained for configuration compatibility; this channel is DM-only. */
-    groupAllowFrom?: string[];
     debounceMs?: number;
 };
 export type ResolvedWechatKfAccount = {

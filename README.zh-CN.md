@@ -2,6 +2,7 @@
 
 # OpenClaw 微信客服插件
 
+[![npm version](https://img.shields.io/npm/v/@pawastation%2Fwechat-kf.svg)](https://www.npmjs.com/package/@pawastation/wechat-kf)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![OpenClaw](https://img.shields.io/badge/OpenClaw-channel%20plugin-blue.svg)](https://openclaw.dev)
 
@@ -71,7 +72,7 @@
 ## 前提条件
 
 1. **企业微信账号** — 用企业微信 App 注册即可（个人就能注册，不需要真实企业）
-2. **已安装并运行 OpenClaw 2026.7.1-2**，以及 Node.js 22.22.3+、24.15.0+ 或 25.9.0+ — 参考 [OpenClaw 文档](https://docs.openclaw.ai/)
+2. **已安装并运行 OpenClaw** — 参考 [OpenClaw 文档](https://docs.openclaw.ai/)
 
 ---
 
@@ -79,15 +80,12 @@
 
 ### 第 1 步：安装插件
 
-`0.4.1` 修复旧配置校验失败、启动时的 ESM 加载竞态，以及从 Git 安装时缺少运行文件的问题。已有配置中的 `channels.wechat-kf.allowedKfIds`、`channels.wechat-kf.groupAllowFrom` 数组可保留。`allowedKfIds` 限制插件可处理的客服账号，未设置或为空数组时允许全部已发现账号。`groupAllowFrom` 仅保留配置兼容性：当前渠道只支持私聊，限制私聊用户请使用 `dmPolicy` 和 `allowFrom`。如果这些字段曾被自动修复工具删除，请从配置备份恢复所需值。
-
-如果 `0.4.0-maleon.1` 加载 `openclaw/plugin-sdk/channel-plugin-common` 时报告 `ERR_REQUIRE_ESM_RACE_CONDITION`，请升级修复包。修复版将启动所需的空配置校验、配对提示改为本地辅助函数，并通过 SDK 兼容测试保持行为一致，避免启动期间运行时导入 SDK。OpenClaw `2026.7.1-2` 要求 `register()` 同步执行，直接改为 `async` 不能解决问题。
-
-修复包同时补齐 `dist/src/message-ledger.js`（其缺失会导致另一个 `ERR_MODULE_NOT_FOUND` 错误），并补充 CommonJS 加载器所需的包导出回退。已在本地 macOS ARM64 上使用 OpenClaw `2026.7.1-2`，分别在 Node `24.19.0` 和 `26.7.0` 下验证解包后的插件加载、注册及 SDK 并发加载。生产 Linux 网关启动和企业微信实际收发仍需部署验证。
-
 ```bash
-# 从本维护仓库安装
-openclaw plugins install git+https://github.com/MaLeon/wechat-kf.git#main
+# 首次安装
+openclaw plugins install @pawastation/wechat-kf
+
+# 升级
+openclaw plugins update @pawastation/wechat-kf
 ```
 
 ### 第 2 步：安装 Tunnel（cloudflared）
@@ -116,24 +114,18 @@ cloudflared tunnel --url http://localhost:7860
 
 ![企业微信 App 菜单里选"创建/加入企业"然后选其他](docs/images/wecom-app-create-enterprise.png)
 
-在企业微信管理后台「我的企业」中复制**企业 ID**（Corp ID）。
-
-### 第 4 步：创建企业微信自建应用
-
-在企业微信管理后台进入「应用管理」→「自建」→「创建应用」，创建一个自建应用并复制其 Secret。此 Secret 才是配置中的 `appSecret`；微信客服的开发配置页面只负责回调 Token 与 EncodingAESKey，不提供 API Secret。
-
-### 第 5 步：创建客服账号
+### 第 4 步：创建客服账号
 
 1. 打开[微信客服管理后台](https://kf.weixin.qq.com/)（用企业微信 App 扫码登录）
 2. 创建一个客服账号（设置名称和头像）
 
 ![在微信客服后台创建客服账号](docs/images/kf-create-account.png)
 
-### 第 6 步：在微信客服后台授权自建应用
+同时在这里复制**企业 ID**（Corp ID）备用：
 
-打开微信客服管理后台的**可调用接口的应用**，授权第 4 步创建的自建应用；再为第 5 步的客服账号开启**通过 API 管理微信客服账号**。这两项都完成后，插件才有权限拉取消息和发送回复。
+![复制企业 ID（Corp ID）](docs/images/kf-corp-id.png)
 
-### 第 7 步：在微信客服后台配置回调
+### 第 5 步：在微信客服后台配置回调
 
 1. 打开[微信客服管理后台](https://kf.weixin.qq.com/) → **开发配置** → **开始使用**
 2. 填入回调地址（你的 Tunnel 地址 + `/wechat-kf`，例如 `https://xxxx.trycloudflare.com/wechat-kf`）
@@ -143,9 +135,9 @@ cloudflared tunnel --url http://localhost:7860
 
 **先复制好 Token 和 EncodingAESKey，暂时不要点「保存」** — 下一步先把这两个值填入 OpenClaw，再回来保存验证。
 
-### 第 8 步：配置 OpenClaw 后台
+### 第 6 步：配置 OpenClaw 后台
 
-进入 OpenClaw 后台，添加微信客服渠道配置。填入第 7 步生成的 Token 和 EncodingAESKey，以及第 4 步自建应用的 Secret，**保存配置**：
+进入 OpenClaw 后台，添加微信客服渠道配置。`appSecret` 先随便填一个占位值（第 8 步替换），把上一步生成的 Token 和 EncodingAESKey 填入对应字段，**保存配置**：
 
 ![OpenClaw 后台插件配置，输入四个值并开启 Enabled](docs/images/openclaw-channel-config.png)
 
@@ -155,22 +147,31 @@ OpenClaw 配置示例：
 channels:
   wechat-kf:
     enabled: true
-    dmPolicy: "open" # 公开客服，无需客户配对或管理员批准
-    corpId: "wwXXXXXXXXXXXXXXXX" # 第 3 步复制的企业 ID
-    appSecret: "" # 第 4 步自建应用的 Secret
-    token: "从第 7 步复制"
-    encodingAESKey: "从第 7 步复制"
+    corpId: "wwXXXXXXXXXXXXXXXX" # 第 4 步复制的企业 ID
+    appSecret: "placeholder" # 先填占位，第 8 步替换
+    token: "从第 5 步复制"
+    encodingAESKey: "从第 5 步复制"
 ```
 
 保存后 OpenClaw 会立即开始监听回调地址，下一步微信的验证请求才能通过。
 
-### 第 9 步：回到微信客服后台完成回调验证
+### 第 7 步：回到微信客服后台完成验证，获取 Secret
 
 回到[微信客服管理后台](https://kf.weixin.qq.com/)的开发配置页面，点击**「保存」** — 微信会立即向你的回调地址发一个验证请求，OpenClaw 自动回应，验证通过后配置生效。
 
 ![点击「开始使用」来配置收发微信消息的 OpenClaw 服务](docs/images/kf-start-dev-config.png)
 
-### 第 10 步：开始聊天
+验证通过后，在同一页面复制 **App Secret**：
+
+![复制最后需要设置的 App Secret](docs/images/kf-copy-secret.png)
+
+### 第 8 步：更新 Secret
+
+把第 6 步填的占位 Secret 替换为刚复制的实际值，保存配置：
+
+![把随便输入的 Secret 替换为微信客服后台的实际值](docs/images/openclaw-update-secret.png)
+
+### 第 9 步：开始聊天
 
 在微信客服后台找到你的客服账号，复制**客服链接**分享给用户（或者自己先测试）：
 
@@ -178,7 +179,23 @@ channels:
 
 用微信扫码或点开链接，就能和你的 AI Agent 对话了。
 
-面向公众的客服保持 `dmPolicy: "open"` 即可，这也是插件默认值。客户发消息即可对话，无需配对码或管理员逐个批准。如果之前开启过配对模式，请将该配置改回 `open`。
+### 第 10 步：安全设置（推荐）
+
+默认情况下，任何拿到客服链接的人都可以发消息。如果你想限制访问，可以开启 `pairing`（配对）模式：
+
+在 OpenClaw 后台把 `dmPolicy` 改为 `pairing`：
+
+![在 OpenClaw 后台修改微信渠道的认证方式](docs/images/openclaw-dm-policy.png)
+
+开启后，新用户第一次发消息会收到配对码：
+
+![开启认证之后会收到需要配对的认证信息](docs/images/wechat-pairing-message.png)
+
+在 openclaw 所在电脑上运行以下命令批准：
+
+```bash
+openclaw pairing approve wechat-kf <配对码>
+```
 
 ---
 
@@ -188,41 +205,19 @@ channels:
 | ---------------- | -------- | ------ | ------------ | -------------------------------------------------------------------------------------------------------------- |
 | `enabled`        | boolean  | 否     | `false`      | 是否启用该渠道                                                                                                 |
 | `corpId`         | string   | **是** | —            | 企业 ID                                                                                                        |
-| `appSecret`      | string   | **是** | —            | 在微信客服后台授权的企业微信自建应用 Secret                                                                    |
+| `appSecret`      | string   | **是** | —            | 微信客服 Secret（从微信客服后台「开发配置」获取）                                                              |
 | `token`          | string   | **是** | —            | Webhook 回调 Token                                                                                             |
 | `encodingAESKey` | string   | **是** | —            | 43 位 AES 加密密钥                                                                                             |
 | `webhookPath`    | string   | 否     | `/wechat-kf` | Webhook 回调 URL 路径                                                                                          |
-| `dmPolicy`       | string   | 否     | `"open"`     | 公开客服使用 `open`；`allowlist` / `pairing` 用于限制用户，`disabled` 停止处理消息                              |
+| `dmPolicy`       | string   | 否     | `"open"`     | `open`（开放）/ `allowlist`（白名单）/ `pairing`（配对）/ `disabled`（禁用）                                   |
 | `allowFrom`      | string[] | 否     | `[]`         | 允许的 external_userid 列表（dmPolicy 为 `allowlist` 时使用）                                                  |
-| `allowedKfIds`   | string[] | 否     | `[]`         | 允许的原始 `open_kfid` 列表；未设置或为空时允许全部已发现账号，限制覆盖回调、轮询和发送                            |
-| `groupAllowFrom` | string[] | 否     | —            | 旧配置兼容字段；当前渠道不支持群聊，该字段不生效                                                                  |
 | `debounceMs`     | number   | 否     | `2000`       | 消息防抖窗口（毫秒，0–10000）：等待窗口内无新消息后再发给 Agent，适合用户分多条消息输入的场景；设为 `0` 可禁用 |
-
-### 可选：自用或内部测试时限制用户
-
-如果将插件用于自用机器人或仅面向指定用户的内部测试，可主动设置 `dmPolicy: "pairing"`。插件会先要求尚未获准的用户完成配对批准，再将其消息交给 Agent。这是 OpenClaw 的可选访问策略，企业微信客服接入本身不要求客户配对。
-
-在 OpenClaw 后台把 `dmPolicy` 改为 `pairing`：
-
-![在 OpenClaw 后台修改微信渠道的认证方式](docs/images/openclaw-dm-policy.png)
-
-尚未获准的用户第一次发消息会收到配对码：
-
-![开启认证之后会收到需要配对的认证信息](docs/images/wechat-pairing-message.png)
-
-管理员在 OpenClaw 所在电脑上批准：
-
-```bash
-openclaw pairing approve wechat-kf <配对码>
-```
-
-也可设置 `dmPolicy: "allowlist"`，通过 `allowFrom` 指定允许的客户 ID。`allowedKfIds` 则用于选择插件处理哪些客服账号，可以与 `dmPolicy: "open"` 同时使用，无需批准客户。
 
 ---
 
 ## 有什么限制？
 
-- **客户访问范围** — `dmPolicy: "open"` 允许联系已启用客服账号的所有客户进入对话。仅在需要限制用户的场景下，使用上述可选访问策略。
+- **任何人都能发消息** — 拿到客服链接的人都能发消息，这是微信平台层面的设计，无法阻止。可以用 `dmPolicy: "pairing"` 或 `"allowlist"` 让 Agent 只回复指定用户。
 - **48 小时回复窗口** — 用户最后一条消息后 48 小时内才能回复。超时后需要用户再发一条消息才能继续。
 - **5 条消息限制** — 在用户发下一条消息前，最多只能发 5 条回复。
 - **语音格式** — 入站语音为 AMR 格式，是否能转录取决于你的 Agent 配置。

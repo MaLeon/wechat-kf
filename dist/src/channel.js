@@ -9,15 +9,14 @@
  * - Per-kfId accounts: wait for shared context, then start 30s polling loop
  * - Webhook handler: registered on framework's shared gateway server (no self-managed HTTP server)
  */
+import { formatPairingApproveHint, PAIRING_APPROVED_MESSAGE } from "openclaw/plugin-sdk";
 import { deleteKfId, disableKfId, enableKfId, getChannelConfig, listAccountIds, loadKfIds, resolveAccount, } from "./accounts.js";
 import { sendTextMessage } from "./api.js";
 import { handleWebhookEvent } from "./bot.js";
 import { wechatKfConfigSchema } from "./config-schema.js";
 import { CHANNEL_ID, CONFIG_KEY, DEFAULT_WEBHOOK_PATH, defaultStateDir, formatError, logTag } from "./constants.js";
-import { isKfIdAllowed } from "./kf-policy.js";
 import { clearSharedContext, getPairingKfId, getSharedContext, setSharedContext, waitForSharedContext, } from "./monitor.js";
 import { wechatKfOutbound } from "./outbound.js";
-import { formatPairingApproveHint, PAIRING_APPROVED_MESSAGE } from "./plugin-bootstrap.js";
 import { getRuntime } from "./runtime.js";
 import { getAccessToken } from "./token.js";
 const meta = {
@@ -145,7 +144,7 @@ export const wechatKfPlugin = {
             if (!corpId || !appSecret)
                 return;
             const kfId = getPairingKfId(id) ?? listAccountIds(shared.botCtx.cfg).find((a) => a !== "default");
-            if (!kfId || !isKfIdAllowed(getChannelConfig(shared.botCtx.cfg), kfId))
+            if (!kfId)
                 return;
             await sendTextMessage(corpId, appSecret, id, kfId, PAIRING_APPROVED_MESSAGE);
         },

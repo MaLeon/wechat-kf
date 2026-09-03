@@ -1,6 +1,6 @@
 {
-  "name": "@maleon/wechat-kf",
-  "version": "0.4.1",
+  "name": "@pawastation/wechat-kf",
+  "version": "0.3.2",
   "description": "OpenClaw channel plugin for WeChat Customer Service (企业微信客服) — enables AI-powered customer service bots via WeCom KF API",
   "type": "module",
   "license": "MIT",
@@ -26,18 +26,15 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "import": "./dist/index.js"
     },
     "./crypto": {
       "types": "./dist/src/crypto.d.ts",
-      "import": "./dist/src/crypto.js",
-      "default": "./dist/src/crypto.js"
+      "import": "./dist/src/crypto.js"
     },
     "./api": {
       "types": "./dist/src/api.d.ts",
-      "import": "./dist/src/api.js",
-      "default": "./dist/src/api.js"
+      "import": "./dist/src/api.js"
     }
   },
   "files": [
@@ -50,13 +47,12 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:package": "node scripts/check-package.mjs",
     "test:watch": "vitest",
-    "lint": "biome check src/ scripts/ index.ts",
-    "lint:fix": "biome check --write src/ scripts/ index.ts",
-    "format": "biome format --write src/ scripts/ index.ts",
-    "check": "biome check src/ scripts/ index.ts",
-    "prepublishOnly": "pnpm run build && pnpm run typecheck && pnpm test && pnpm run lint && pnpm run test:package"
+    "lint": "biome check src/ index.ts",
+    "lint:fix": "biome check --write src/ index.ts",
+    "format": "biome format --write src/ index.ts",
+    "check": "biome check src/ index.ts",
+    "prepublishOnly": "pnpm run build && pnpm run typecheck && pnpm test && pnpm run lint"
   },
   "publishConfig": {
     "access": "public",
@@ -64,12 +60,12 @@
   },
   "packageManager": "pnpm@10.6.3",
   "engines": {
-    "node": ">=22.22.3 <23 || >=24.15.0 <25 || >=25.9.0"
+    "node": ">=22.12.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.4",
     "@types/node": "^25.3.0",
-    "openclaw": "2026.7.1-2",
+    "openclaw": "^2026.3.2",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   },
@@ -90,6 +86,7 @@
       "order": 80
     },
     "install": {
+      "npmSpec": "@pawastation/wechat-kf",
       "localPath": "extensions/wechat-kf",
       "defaultChoice": "local"
     }
