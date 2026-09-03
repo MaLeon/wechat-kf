@@ -127,6 +127,7 @@ Add the channel to OpenClaw config and enable it. Fill in the Token and Encoding
 channels:
   wechat-kf:
     enabled: true
+    dmPolicy: "open" # Public customer service; no pairing approval
     corpId: "wwXXXXXXXXXXXXXXXX"
     appSecret: "" # Secret of the authorized self-built app
     token: "" # from step 6
@@ -143,13 +144,7 @@ Back in [kf.weixin.qq.com](https://kf.weixin.qq.com/) → **Dev Config**, click 
 
 In the WeChat KF admin, copy the **contact link** for your KF account and open it in WeChat to start chatting with your agent.
 
-**Step 10 — (Recommended) Enable pairing mode**
-
-To restrict access, set `dmPolicy: "pairing"`. New users receive a pairing code; approve with:
-
-```bash
-openclaw pairing approve wechat-kf <code>
-```
+For public customer service, keep `dmPolicy: "open"` (the default). Customers can chat directly without a pairing code or administrator approval. If you previously enabled pairing, change this setting back to `open`.
 
 ---
 
@@ -163,17 +158,27 @@ openclaw pairing approve wechat-kf <code>
 | `token`          | string   | **Yes**  | —            | Webhook callback token                                                                                                     |
 | `encodingAESKey` | string   | **Yes**  | —            | 43-char AES key for message encryption                                                                                     |
 | `webhookPath`    | string   | No       | `/wechat-kf` | URL path for webhook callbacks                                                                                             |
-| `dmPolicy`       | string   | No       | `"open"`     | `open` / `allowlist` / `pairing` / `disabled`                                                                              |
+| `dmPolicy`       | string   | No       | `"open"`     | Use `open` for public customer service; `allowlist` / `pairing` restrict users; `disabled` stops message processing          |
 | `allowFrom`      | string[] | No       | `[]`         | Allowed external_userids (when `dmPolicy` is `allowlist`)                                                                  |
 | `allowedKfIds`   | string[] | No       | `[]`         | Allowed original `open_kfid` values; omitted or empty allows all discovered accounts; applies to callbacks, polling, and sends |
 | `groupAllowFrom` | string[] | No       | —            | Legacy compatibility field; unused because this channel has no group chats                                                   |
 | `debounceMs`     | number   | No       | `2000`       | Debounce window in ms (0–10000): waits until no new message in window, then dispatches all to agent; set to `0` to disable |
 
+### Optional: restrict users for private or internal use
+
+For a personal bot or an internal test with selected users, you can explicitly enable `dmPolicy: "pairing"`. The plugin then asks new, unauthorized users for approval before passing their messages to the agent. This is an optional OpenClaw access policy, not a WeChat KF setup requirement. An administrator approves a user on the OpenClaw host with:
+
+```bash
+openclaw pairing approve wechat-kf <code>
+```
+
+Alternatively, use `dmPolicy: "allowlist"` with `allowFrom` to specify allowed customer IDs. `allowedKfIds` selects which customer-service accounts the plugin handles; it can be used with `dmPolicy: "open"` without requiring customer approval.
+
 ---
 
 ## Limitations
 
-- **Public by design** — anyone with the contact link can send messages; this cannot be prevented at the platform level. Use `dmPolicy: "pairing"` or `"allowlist"` to control who the agent responds to.
+- **Customer access** — with `dmPolicy: "open"`, the plugin accepts messages from all customers contacting the enabled KF accounts. Restricted-user policies are optional, as described above.
 - **48-hour reply window** — WeChat only allows replies within 48 hours of the user's last message.
 - **5 messages per window** — at most 5 replies before the user sends another message.
 - **Voice format** — inbound voice is AMR; transcription depends on your agent's media capabilities.

@@ -155,6 +155,7 @@ OpenClaw 配置示例：
 channels:
   wechat-kf:
     enabled: true
+    dmPolicy: "open" # 公开客服，无需客户配对或管理员批准
     corpId: "wwXXXXXXXXXXXXXXXX" # 第 3 步复制的企业 ID
     appSecret: "" # 第 4 步自建应用的 Secret
     token: "从第 7 步复制"
@@ -177,23 +178,7 @@ channels:
 
 用微信扫码或点开链接，就能和你的 AI Agent 对话了。
 
-### 第 11 步：安全设置（推荐）
-
-默认情况下，任何拿到客服链接的人都可以发消息。如果你想限制访问，可以开启 `pairing`（配对）模式：
-
-在 OpenClaw 后台把 `dmPolicy` 改为 `pairing`：
-
-![在 OpenClaw 后台修改微信渠道的认证方式](docs/images/openclaw-dm-policy.png)
-
-开启后，新用户第一次发消息会收到配对码：
-
-![开启认证之后会收到需要配对的认证信息](docs/images/wechat-pairing-message.png)
-
-在 openclaw 所在电脑上运行以下命令批准：
-
-```bash
-openclaw pairing approve wechat-kf <配对码>
-```
+面向公众的客服保持 `dmPolicy: "open"` 即可，这也是插件默认值。客户发消息即可对话，无需配对码或管理员逐个批准。如果之前开启过配对模式，请将该配置改回 `open`。
 
 ---
 
@@ -207,17 +192,37 @@ openclaw pairing approve wechat-kf <配对码>
 | `token`          | string   | **是** | —            | Webhook 回调 Token                                                                                             |
 | `encodingAESKey` | string   | **是** | —            | 43 位 AES 加密密钥                                                                                             |
 | `webhookPath`    | string   | 否     | `/wechat-kf` | Webhook 回调 URL 路径                                                                                          |
-| `dmPolicy`       | string   | 否     | `"open"`     | `open`（开放）/ `allowlist`（白名单）/ `pairing`（配对）/ `disabled`（禁用）                                   |
+| `dmPolicy`       | string   | 否     | `"open"`     | 公开客服使用 `open`；`allowlist` / `pairing` 用于限制用户，`disabled` 停止处理消息                              |
 | `allowFrom`      | string[] | 否     | `[]`         | 允许的 external_userid 列表（dmPolicy 为 `allowlist` 时使用）                                                  |
 | `allowedKfIds`   | string[] | 否     | `[]`         | 允许的原始 `open_kfid` 列表；未设置或为空时允许全部已发现账号，限制覆盖回调、轮询和发送                            |
 | `groupAllowFrom` | string[] | 否     | —            | 旧配置兼容字段；当前渠道不支持群聊，该字段不生效                                                                  |
 | `debounceMs`     | number   | 否     | `2000`       | 消息防抖窗口（毫秒，0–10000）：等待窗口内无新消息后再发给 Agent，适合用户分多条消息输入的场景；设为 `0` 可禁用 |
 
+### 可选：自用或内部测试时限制用户
+
+如果将插件用于自用机器人或仅面向指定用户的内部测试，可主动设置 `dmPolicy: "pairing"`。插件会先要求尚未获准的用户完成配对批准，再将其消息交给 Agent。这是 OpenClaw 的可选访问策略，企业微信客服接入本身不要求客户配对。
+
+在 OpenClaw 后台把 `dmPolicy` 改为 `pairing`：
+
+![在 OpenClaw 后台修改微信渠道的认证方式](docs/images/openclaw-dm-policy.png)
+
+尚未获准的用户第一次发消息会收到配对码：
+
+![开启认证之后会收到需要配对的认证信息](docs/images/wechat-pairing-message.png)
+
+管理员在 OpenClaw 所在电脑上批准：
+
+```bash
+openclaw pairing approve wechat-kf <配对码>
+```
+
+也可设置 `dmPolicy: "allowlist"`，通过 `allowFrom` 指定允许的客户 ID。`allowedKfIds` 则用于选择插件处理哪些客服账号，可以与 `dmPolicy: "open"` 同时使用，无需批准客户。
+
 ---
 
 ## 有什么限制？
 
-- **任何人都能发消息** — 拿到客服链接的人都能发消息，这是微信平台层面的设计，无法阻止。可以用 `dmPolicy: "pairing"` 或 `"allowlist"` 让 Agent 只回复指定用户。
+- **客户访问范围** — `dmPolicy: "open"` 允许联系已启用客服账号的所有客户进入对话。仅在需要限制用户的场景下，使用上述可选访问策略。
 - **48 小时回复窗口** — 用户最后一条消息后 48 小时内才能回复。超时后需要用户再发一条消息才能继续。
 - **5 条消息限制** — 在用户发下一条消息前，最多只能发 5 条回复。
 - **语音格式** — 入站语音为 AMR 格式，是否能转录取决于你的 Agent 配置。
